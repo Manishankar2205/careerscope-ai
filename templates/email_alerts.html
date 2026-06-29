@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Alerts</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            min-height: 100vh; padding: 20px; color: white;
+            display: flex; align-items: center; justify-content: center;
+        }
+.container { max-width: 600px; width: 100%; }
+.glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 50px;
+        }
+        h1 {
+            font-size: 2.5em; font-weight: 700;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+input {
+            width: 100%;
+            padding: 15px;
+            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(0,255,136,0.3);
+            border-radius: 10px;
+            color: white;
+            font-size: 16px;
+            margin: 10px 0;
+            outline: none;
+        }
+input:focus { border-color: #00ff88; }
+.btn {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            color: #0f0c29;
+            border: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+.back-btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: rgba(255,255,255,0.1);
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/job-matches" class="back-btn">← Back to Jobs</a>
+        
+        <div class="glass-card">
+            <h1>📧 Email Alerts</h1>
+            <p style="color: #b8b8d1; text-align: center; margin-bottom: 30px;">
+                Get notified when new jobs match your profile
+            </p>
+
+            {% if alerts.enabled %}
+            <div style="background: rgba(0,255,136,0.1); border: 2px solid #00ff88; padding: 20px; border-radius: 10px; margin-bottom: 20px; text-align: center;">
+                <strong style="color: #00ff88;">✅ Alerts Active</strong><br>
+                <span style="color: #b8b8d1;">Email: {{ alerts.email }}</span>
+            </div>
+            {% endif %}
+
+            <form method="post">
+                <label style="color: #00ff88; font-weight: 600;">Email Address</label>
+                <input type="email" name="email" placeholder="your@email.com" required value="{{ alerts.email if alerts.email else '' }}">
+                
+                <label style="color: #00ff88; font-weight: 600;">Minimum Match %</label>
+                <input type="number" name="min_match" value="70" min="0" max="100">
+                
+                <button type="submit" class="btn">Enable Alerts 🔔</button>
+            </form>
+
+            <p style="color: #b8b8d1; font-size: 13px; margin-top: 20px; text-align: center;">
+                * Demo mode: Email functionality needs SMTP setup in production
+            </p>
+        </div>
+    </div>
+</body>
+</html>

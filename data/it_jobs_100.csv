@@ -1,0 +1,101 @@
+job_title,skills,salary_lpa,automation_risk,category
+Software Engineer,Java Python DSA Git OOP SystemDesign,12,5,IT
+Frontend Developer,HTML CSS JavaScript React Redux TypeScript,8,12,IT
+Backend Developer,NodeJS Express MongoDB SQL API REST,11,9,IT
+Full Stack Developer,React NodeJS MongoDB JavaScript HTML CSS,13,7,IT
+Python Developer,Python Django Flask API Pandas NumPy,10,8,IT
+Java Developer,Java Spring SpringBoot Hibernate SQL,11,6,IT
+DevOps Engineer,AWS Docker Kubernetes Jenkins CICD Linux,15,6,IT
+Cloud Engineer,AWS Azure GCP CloudArchitecture Terraform,16,5,IT
+Data Scientist,Python MachineLearning DeepLearning SQL Statistics,14,7,IT
+Data Analyst,SQL Python Excel PowerBI Pandas Statistics,6,18,IT
+Machine Learning Engineer,Python TensorFlow PyTorch ML DeepLearning,16,4,IT
+AI Engineer,Python NLP ComputerVision Transformers LLM,18,3,IT
+Data Engineer,Python SQL Spark Hadoop ETL Airflow,13,8,IT
+Business Analyst,SQL Excel Tableau Communication Requirements,7,35,IT
+Product Manager,ProductManagement Agile Scrum Roadmapping Analytics,18,12,IT
+QA Engineer,ManualTesting AutomationTesting Selenium JIRA API,6,22,IT
+Automation Test Engineer,Selenium Java Python Cucumber TestNG,7,15,IT
+UI UX Designer,Figma AdobeXD Wireframing Prototyping UserResearch,7,10,IT
+Mobile App Developer,Android Kotlin iOS Swift ReactNative Flutter,9,11,IT
+iOS Developer,Swift Xcode iOS UIKit SwiftUI,12,9,IT
+Android Developer,Kotlin Java Android Studio Firebase,10,10,IT
+Game Developer,Unity C# UnrealEngine GameDesign,8,14,IT
+Blockchain Developer,Solidity Web3 Ethereum SmartContracts,15,7,IT
+Cyber Security Analyst,Security Networking Firewall EthicalHacking,11,12,IT
+Network Engineer,Networking CCNA Routing Switching TCPIP,5.5,18,IT
+System Administrator,Linux Windows Server ActiveDirectory,6,20,IT
+Database Administrator,SQL Oracle MySQL PostgreSQL DBA,9,3,IT
+IT Support Specialist,TechnicalSupport Troubleshooting Hardware,4,65,IT
+Technical Writer,Documentation TechnicalWriting API Documentation,6,25,IT
+Scrum Master,Agile Scrum JIRA TeamManagement,12,20,IT
+Site Reliability Engineer,SRE Kubernetes Docker Monitoring Linux,17,5,IT
+Salesforce Developer,Apex Salesforce LWC Integration,11,8,IT
+SAP Consultant,SAP ABAP SAPModules ERP,13,15,IT
+ERP Consultant,ERP SAP Oracle Implementation,12,18,IT
+Business Intelligence Developer,PowerBI Tableau SQL DataWarehousing,9,22,IT
+ETL Developer,ETL Informatica SSIS SQL DataWarehousing,8,25,IT
+Big Data Engineer,Hadoop Spark Kafka Hive Scala,14,7,IT
+Cloud Architect,AWS Azure SolutionArchitecture CloudSecurity,22,4,IT
+Solutions Architect,SystemDesign Architecture CloudDesign,20,6,IT
+Technical Architect,Architecture SystemDesign Microservices,24,5,IT
+RPA Developer,UiPath AutomationAnywhere BluePrism RPA,9,12,IT
+IoT Engineer,IoT EmbeddedSystems Arduino RaspberryPi,8,15,IT
+AR VR Developer,Unity ARKit ARCore VRDevelopment,10,12,IT
+Embedded Systems Engineer,C C++ EmbeddedSystems Microcontroller,7,18,IT
+Firmware Engineer,C EmbeddedSystems Firmware RTOS,8,16,IT
+Web Designer,HTML CSS Photoshop Figma ResponsiveDesign,5,20,IT
+WordPress Developer,WordPress PHP HTML CSS JavaScript,5,35,IT
+PHP Developer,PHP Laravel MySQL JavaScript,6,28,IT
+DotNet Developer,C# .NET ASP.NET MVC SQL,9,10,IT
+Angular Developer,Angular TypeScript JavaScript HTML CSS,9,11,IT
+Vue.js Developer,Vue JavaScript HTML CSS Vuex,8,13,IT
+React Developer,React JavaScript Redux TypeScript,10,9,IT
+Node.js Developer,NodeJS Express MongoDB JavaScript,10,8,IT
+MERN Stack Developer,MongoDB Express React NodeJS,11,7,IT
+MEAN Stack Developer,MongoDB Express Angular NodeJS,11,8,IT
+Django Developer,Python Django REST PostgreSQL,9,9,IT
+Flask Developer,Python Flask API SQL,8,10,IT
+Spring Boot Developer,Java SpringBoot Microservices SQL,11,7,IT
+Golang Developer,Go Golang Microservices Docker,14,6,IT
+Rust Developer,Rust SystemsProgramming,16,5,IT
+Ruby on Rails Developer,Ruby Rails PostgreSQL,10,12,IT
+Flutter Developer,Flutter Dart Firebase Mobile,9,11,IT
+Kotlin Developer,Kotlin Android Mobile,10,10,IT
+Swift Developer,Swift iOS Mobile Xcode,12,9,IT
+SEO Specialist,SEO GoogleAnalytics SEM KeywordResearch,5,25,IT
+Digital Marketing Manager,Marketing DigitalMarketing Analytics Strategy,10,14,IT
+Social Media Manager,SocialMedia ContentCreation Marketing,5.5,20,IT
+Content Strategist,ContentStrategy SEO Writing Analytics,6,22,IT
+Growth Hacker,GrowthHacking Analytics Marketing Experiments,12,18,IT
+Performance Marketing Manager,GoogleAds FacebookAds PPC Analytics,9,20,IT
+Email Marketing Specialist,EmailMarketing Automation Campaigns,5,30,IT
+CRM Specialist,Salesforce HubSpot CRM MarketingAutomation,7,28,IT
+Technical Support Engineer,Troubleshooting Linux Networking CustomerService,5,45,IT
+IT Business Analyst,BusinessAnalysis SQL Requirements UML,8,30,IT
+Data Architect,DataModeling DataWarehousing SQL Architecture,18,6,IT
+Database Developer,SQL PL/SQL T-SQL StoredProcedures,8,12,IT
+BI Analyst,PowerBI Tableau SQL Excel,7,24,IT
+MIS Executive,Excel VBA SQL Reporting Macros,4,45,IT-Business
+Tally Operator,Tally GST Accounting Excel,3,72,Non-IT
+Accountant,Tally Excel GST Accounting Auditing,4,72,Non-IT
+Chartered Accountant,CA Accounting Auditing Taxation,12,94,Non-IT
+Financial Analyst,Finance Excel FinancialModeling Valuation,8,23,Finance
+Investment Banker,Finance InvestmentBanking Valuation,25,30,Finance
+HR Executive,Recruitment HRMS Payroll Communication,4,55,Non-IT
+HR Manager,HR Strategy Recruitment LaborLaw,8,55,Non-IT
+Operations Manager,Operations Management SupplyChain,9,15,Management
+Project Manager,ProjectManagement PMP Agile Scrum,14,18,Management
+Sales Manager,Sales Management CRM Leadership,12,35,Sales
+Marketing Manager,Marketing Strategy Branding,10,14,Marketing
+Content Writer,Writing SEO Blogging Communication,3.5,28,Non-IT
+Graphic Designer,Photoshop Illustrator Canva Design,4.5,8,Design
+Video Editor,PremierePro AfterEffects VideoEditing,5,12,Design
+Digital Artist,Photoshop Illustrator DigitalArt,4,15,Design
+Photographer,Photography Lightroom Camera,4,2,Non-IT
+Customer Service Executive,Communication CRM CustomerService,3.5,75,Non-IT
+BPO Executive,Communication Typing CustomerService,3,85,Non-IT
+Telecaller,Communication Sales Telecalling,2.8,99,Non-IT
+Receptionist,Communication MSOffice FrontDesk,3,96,Non-IT
+Office Assistant,MSOffice Administration Documentation,3.2,90,Non-IT
+Data Entry Operator,Excel Typing DataEntry,3,94,Non-IT

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interview Prep - {{ job_title }}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            min-height: 100vh; padding: 20px; color: white;
+        }
+.container { max-width: 900px; margin: 0 auto; }
+.glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            margin: 20px 0;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        h1 {
+            font-size: 2.5em; font-weight: 700;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+.back-btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: rgba(255,255,255,0.1);
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: 0.3s;
+            margin-bottom: 20px;
+        }
+.back-btn:hover {
+            background: rgba(0,255,136,0.2);
+            transform: translateX(-5px);
+        }
+.question-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(0,255,136,0.3);
+            border-radius: 15px;
+            padding: 25px;
+            margin: 15px 0;
+            transition: 0.3s;
+        }
+.question-card:hover {
+            transform: translateX(10px);
+            border-color: #00ff88;
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.2);
+        }
+.question-num {
+            display: inline-block;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            color: #0f0c29;
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 35px;
+            font-weight: 700;
+            margin-right: 15px;
+        }
+.question-text {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #00ff88;
+        }
+.company-badge {
+            display: inline-block;
+            background: rgba(255,170,0,0.2);
+            border: 1px solid #ffaa00;
+            color: #ffaa00;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+.tip-box {
+            background: rgba(0,170,255,0.1);
+            border-left: 4px solid #00aaff;
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/job-matches" class="back-btn">← Back to Jobs</a>
+
+        <div class="glass-card">
+            <h1>💼 Interview Prep</h1>
+            <p style="color: #b8b8d1; font-size: 1.2em;">For: <span style="color: #00ff88; font-weight: 700;">{{ job_title }}</span></p>
+            <div class="company-badge">🏢 {{ company }} Specific Questions</div>
+
+            <h3 style="color: #00ff88; margin: 30px 0 20px;">📝 Top Interview Questions</h3>
+            
+            {% for question in questions %}
+            <div class="question-card">
+                <span class="question-num">{{ loop.index }}</span>
+                <span class="question-text">{{ question }}</span>
+            </div>
+            {% endfor %}
+
+            <div class="tip-box">
+                <strong style="color: #00aaff;">💡 Pro Tip:</strong>
+                <p style="margin-top: 10px; color: #b8b8d1;">
+                    Practice these questions with STAR method: Situation, Task, Action, Result. 
+                    Record yourself answering and review for confidence!
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

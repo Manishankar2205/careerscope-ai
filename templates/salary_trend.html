@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salary Trend - {{ job_title }}</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(to right, #24243e, #302b63, #0f0c29);
+            min-height: 100vh; padding: 20px; color: white;
+        }
+.container { max-width: 1000px; margin: 0 auto; }
+.glass-card {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 40px;
+            margin: 20px 0;
+        }
+        h1 {
+            font-size: 2.5em; font-weight: 700;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+.back-btn {
+            display: inline-block;
+            padding: 12px 25px;
+            background: rgba(255,255,255,0.1);
+            color: #00ff88;
+            border: 2px solid #00ff88;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: 0.3s;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/job-matches" class="back-btn">← Back to Jobs</a>
+
+        <div class="glass-card">
+            <h1>📈 Salary Growth Projection</h1>
+            <p style="color: #b8b8d1; font-size: 1.2em;">
+                <span style="color: #00ff88; font-weight: 700;">{{ job_title }}</span> • 
+                Current: <span style="color: #00ff88;">₹{{ current_salary }} LPA</span>
+            </p>
+
+            <div id="salary-chart" style="margin-top: 30px;"></div>
+
+            <div style="margin-top: 30px; padding: 20px; background: rgba(0,170,255,0.1); border-radius: 10px; border-left: 4px solid #00aaff;">
+                <strong style="color: #00aaff;">💡 Insight:</strong>
+                <p style="margin-top: 10px; color: #b8b8d1;">
+                    Based on industry trends, your salary can grow ~15% per year with experience. 
+                    By 10 years, you could reach ₹{{ (current_salary * 4.05) | round(1) }} LPA!
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const chartData = {{ chart_json | safe }};
+        Plotly.newPlot('salary-chart', chartData.data, chartData.layout, {responsive: true});
+    </script>
+</body>
+</html>

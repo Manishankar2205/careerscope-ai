@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CareerScope - Skill Analysis</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #0f172a;
+            color: white;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* SIDEBAR */
+       .sidebar {
+            width: 260px;
+            background: #1e293b;
+            padding: 25px 15px;
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            height: 100vh;
+            border-right: 1px solid #334155;
+        }
+       .logo {
+            font-size: 1.5em;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 40px;
+            padding: 0 10px;
+        }
+       .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 15px;
+            margin: 4px 0;
+            border-radius: 10px;
+            color: #94a3b8;
+            text-decoration: none;
+            font-weight: 500;
+            transition: 0.2s;
+            cursor: pointer;
+            border: none;
+            background: transparent;
+            width: 100%;
+            text-align: left;
+            font-family: 'Poppins';
+            font-size: 15px;
+        }
+       .nav-item:hover {
+            background: #334155;
+            color: #00ff88;
+        }
+       .nav-item.active {
+            background: #334155;
+            color: #00ff88;
+            border-left: 3px solid #00ff88;
+        }
+       .nav-divider {
+            height: 1px;
+            background: #334155;
+            margin: 15px 0;
+        }
+       .weather-widget {
+            margin-top: auto;
+            padding: 15px;
+            background: #0f172a;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+       .weather-widget.temp {
+            font-size: 1.8em;
+            font-weight: 600;
+            color: #00ff88;
+        }
+
+        /* MAIN CONTENT */
+       .main-content {
+            margin-left: 260px;
+            flex: 1;
+            padding: 30px;
+            background: #0f172a;
+        }
+       .page-header h1 {
+            font-size: 2.2em;
+            font-weight: 700;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+       .page-header p {
+            color: #94a3b8;
+            margin-bottom: 25px;
+        }
+
+        /* CARDS */
+       .glass-card {
+            background: #1e293b;
+            border-radius: 15px;
+            border: 1px solid #334155;
+            padding: 30px;
+            margin: 20px 0;
+            animation: fadeIn 0.6s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+       .applying-banner {
+            background: rgba(0,255,136,0.15);
+            border: 2px solid #00ff88;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        /* STATS CARDS */
+       .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+       .stat-card {
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 15px;
+            border: 1px solid #334155;
+        }
+       .stat-card.label {
+            color: #94a3b8;
+            font-size: 0.9em;
+            margin-bottom: 8px;
+        }
+       .stat-card.value {
+            font-size: 2.2em;
+            font-weight: 700;
+            color: #00ff88;
+        }
+
+        /* SKILLS */
+       .skills-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 15px;
+        }
+       .skill-badge {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+       .missing-badge {
+            background: rgba(255, 68, 68, 0.15);
+            border: 1px solid #ff4444;
+            color: #ff8888;
+            padding: 8px 16px;
+            border-radius: 15px;
+            display: inline-block;
+            margin: 5px;
+            font-size: 13px;
+            text-decoration: none;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+       .missing-badge:hover {
+            background: rgba(255, 68, 68, 0.3);
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(255,68,68,0.3);
+        }
+       .apply-btn {
+            display: inline-block;
+            padding: 12px 28px;
+            background: linear-gradient(90deg, #00ff88, #00aaff);
+            color: #0f172a;
+            border-radius: 10px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 15px;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+       .apply-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,255,136,0.4);
+        }
+        #gauge-chart { margin: 20px 0; }
+
+        @media (max-width: 1024px) {
+           .sidebar { width: 80px; }
+           .sidebar.logo,.sidebar.nav-item span { display: none; }
+           .main-content { margin-left: 80px; }
+           .stats-grid { grid-template-columns: 1fr 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="logo">CareerScope</div>
+
+        <a href="{{ url_for('skill_analysis') }}" class="nav-item active">
+            📊 <span>Skill Analysis</span>
+        </a>
+        <a href="{{ url_for('job_matches') }}" class="nav-item">
+            💼 <span>Job Matches</span>
+        </a>
+        <a href="{{ url_for('export_pdf') }}" target="_blank" class="nav-item">
+            📄 <span>Export PDF</span>
+        </a>
+        <button onclick="showEmailAlert()" class="nav-item">
+            📧 <span>Email Alerts</span>
+        </button>
+        {% if charts and charts.top_job %}
+        <a href="{{ url_for('salary_trend', job_title=charts.top_job.title, salary=charts.top_job.salary) }}" class="nav-item">
+            📈 <span>Salary Trend</span>
+        </a>
+        {% endif %}
+
+        <div class="nav-divider"></div>
+
+        <a href="{{ url_for('new_analysis') }}" class="nav-item">
+            ← <span>New Analysis</span>
+        </a>
+        <a href="{{ url_for('logout') }}" class="nav-item">
+            🚪 <span>Logout</span>
+        </a>
+
+        <div class="weather-widget">
+            <div class="temp">29°C</div>
+            <div style="color: #94a3b8; font-size: 13px;">Mostly clear</div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <div class="page-header">
+            <h1>✨ Skill Analysis</h1>
+            <p>Detailed breakdown of your career profile</p>
+        </div>
+
+        {% if applying_job_title %}
+        <div class="applying-banner">
+            <p style="color: #b8b8d1; font-size: 14px; margin-bottom: 10px;">
+                {% if title_source == 'job_description' %}
+                    Based on Job Description:
+                {% else %}
+                    Based on your resume, best match:
+                {% endif %}
+            </p>
+            <h2 style="color: #00ff88; font-size: 1.8em; font-weight: 700; margin: 0;">{{ applying_job_title }}</h2>
+        </div>
+        {% endif %}
+
+        <!-- STATS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="label">Skills Detected</div>
+                <div class="value">{{ skills_found|length }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Best Match</div>
+                <div class="value">{{ results[0].match if results else 0 }}%</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">ATS Score</div>
+                <div class="value">{{ ats_score }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Job Matches</div>
+                <div class="value">{{ results|length }}</div>
+            </div>
+        </div>
+
+        <!-- YOUR SKILLS -->
+        <div class="glass-card">
+            <h3 style="color: #00ff88; margin-bottom: 15px; font-size: 1.3em;">🎓 Your Skills</h3>
+            <div class="skills-container">
+                {% for skill in skills_found %}
+                    <span class="skill-badge">{{ skill }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- JD COMPARISON + GAUGE - OKATE CARD -->
+        {% if jd_comparison %}
+        <div class="glass-card">
+            <h3 style="color: #00ff88; margin-bottom: 20px; font-size: 1.3em;">📋 Job Description Match</h3>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px;">
+                <!-- Left: Stats -->
+                <div>
+                    <div class="stat-card" style="margin-bottom: 15px;">
+                        <div class="label">JD Match Score</div>
+                        <div class="value">{{ jd_comparison.match_percent }}%</div>
+                        <p style="color: #94a3b8; margin-top: 10px; font-size: 0.9em;">
+                            {{ jd_comparison.total_matched }}/{{ jd_comparison.total_jd_skills }} matched
+                        </p>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="label">Match Status</div>
+                        <div style="font-size: 1.8em; font-weight: 700; margin-top: 10px;">
+                            {% if jd_comparison.match_percent >= 80 %}
+                                <span style="color: #00ff88;">🔥 Strong Fit</span>
+                            {% elif jd_comparison.match_percent >= 60 %}
+                                <span style="color: #ffc107;">⭐ Good Fit</span>
+                            {% elif jd_comparison.match_percent >= 40 %}
+                                <span style="color: #ff9800;">💡 Average Fit</span>
+                            {% else %}
+                                <span style="color: #ff4444;">❌ Weak Fit</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Gauge -->
+                <div>
+                    {% if charts and charts.gauge %}
+                    <div id="gauge-chart"></div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if jd_comparison.matched_skills %}
+            <div style="margin-top: 25px; padding: 20px; background: rgba(0,255,136,0.1); border-radius: 12px; border-left: 4px solid #00ff88;">
+                <strong style="color: #00ff88;">✅ Matched Skills:</strong><br>
+                <div class="skills-container">
+                    {% for skill in jd_comparison.matched_skills %}
+                        <span class="skill-badge" style="background: linear-gradient(90deg, #00ff88, #00cc70);">{{ skill }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if jd_comparison.missing_skills %}
+            <div style="margin-top: 15px; padding: 20px; background: rgba(255,68,68,0.1); border-radius: 12px; border-left: 4px solid #ff4444;">
+                <strong style="color: #ff8888;">⚠️ Missing Skills - Click to learn on YouTube:</strong><br>
+                <div class="skills-container">
+                    {% for skill in jd_comparison.missing_skills %}
+                        <a href="https://www.youtube.com/results?search_query={{ skill | urlencode }}+tutorial+for+beginners" target="_blank" class="missing-badge">{{ skill }}</a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            {% if jd_comparison.extra_skills %}
+            <div style="margin-top: 15px; padding: 20px; background: rgba(0,170,255,0.1); border-radius: 12px; border-left: 4px solid #00aaff;">
+                <strong style="color: #00aaff;">🎁 Bonus Skills:</strong><br>
+                <div class="skills-container">
+                    {% for skill in jd_comparison.extra_skills %}
+                        <span class="skill-badge" style="background: linear-gradient(90deg, #00aaff, #0088cc);">{{ skill }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- MISSING SKILLS FOR TOP JOB -->
+        {% if charts and charts.top_job and charts.top_job.missing %}
+        <div class="glass-card">
+            <h3 style="color: #ff8888; margin-bottom: 20px; font-size: 1.3em;">⚠️ Missing Skills for {{ charts.top_job.title }} Job</h3>
+            <p style="color: #94a3b8; margin-bottom: 15px;">Click any skill to learn on YouTube</p>
+            <div class="skills-container">
+                {% for skill in charts.top_job.missing %}
+                    <a href="https://www.youtube.com/results?search_query={{ skill | urlencode }}+tutorial+for+beginners" target="_blank" class="missing-badge">{{ skill }}</a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- TOP MATCH SUMMARY -->
+        <div class="glass-card">
+            <h2 style="color: #00ff88; margin-bottom: 25px; font-size: 1.5em;">🎯 Job Matches</h2>
+            <p style="color: #94a3b8; margin-bottom: 20px; font-size: 1.1em;">
+                Based on your skills, we found <strong style="color: #00ff88;">{{ results|length }} jobs</strong> matching your profile
+            </p>
+            <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; justify-content: space-between;">
+                <div>
+                    <div style="font-size: 1.3em; color: #00ff88; font-weight: 700;">
+                        Top Match: {{ results[0].title if results else 'N/A' }}
+                    </div>
+                    <div style="color: #94a3b8; margin-top: 5px;">
+                        {{ results[0].match if results else 0 }}% Match • ₹{{ results[0].salary if results else 0 }} LPA
+                    </div>
+                </div>
+                <a href="/job-matches" class="apply-btn" style="margin: 0; text-decoration: none;">
+                    📊 View All {{ results|length }} Job Matches →
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        {% if charts and charts.gauge %}
+        try {
+            const gaugeData = {{ charts.gauge | safe }};
+            Plotly.newPlot('gauge-chart', gaugeData.data, gaugeData.layout, {responsive: true, displayModeBar: false});
+        } catch(e) {
+            console.log('Chart error:', e);
+        }
+        {% endif %}
+
+        function showEmailAlert() {
+            const email = prompt('Enter your email for job alerts:');
+            if (email) {
+                fetch('/email-alerts', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                    body: 'email=' + encodeURIComponent(email) + '&min_match=70'
+                })
+             .then(r => r.json())
+             .then(data => alert(data.message))
+             .catch(e => alert('Error: ' + e));
+            }
+        }
+    </script>
+</body>
+</html>
