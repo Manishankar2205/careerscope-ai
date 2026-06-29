@@ -21,11 +21,12 @@ import gc
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# FIXED: Default Flask cookie sessions - No Flask-Session
+# RENDER FIX: Cookie settings for proxy HTTPS
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024 # 32MB
-app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_SECURE'] = False # Render proxy kosam False pettam
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_REFRESH_EACH_REQUEST'] = False
 
 bcrypt = Bcrypt(app)
 login_manager = LoginManager()
@@ -40,6 +41,7 @@ def handle_file_too_large(e):
 
 @app.errorhandler(500)
 def handle_500(e):
+    print(f"500 Error: {e}")
     flash('Server error occurred. Please try again.', 'error')
     return redirect(url_for('index'))
 
@@ -173,11 +175,11 @@ def extract_text_from_pdf(file):
     text = ""
     try:
         with pdfplumber.open(file) as pdf:
-            for page in pdf.pages[:5]: # 10 nundi 5 ki taggincham - memory save
+            for page in pdf.pages[:5]:
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + " "
-                    if len(text) > 30000: # 50k nundi 30k ki
+                    if len(text) > 30000:
                         break
     except Exception as e:
         print(f"PDF Error: {e}")
@@ -218,7 +220,7 @@ def get_top_matches(resume_skills, it_only=True):
     try:
         resume_text = " ".join(resume_skills)
         job_skills_list = df_jobs['skills'].fillna('').astype(str).str.lower().tolist()
-        vectorizer = TfidfVectorizer(stop_words='english', max_features=500, ngram_range=(1, 2)) # 1000 nundi 500 ki
+        vectorizer = TfidfVectorizer(stop_words='english', max_features=500, ngram_range=(1, 2))
         vectors = vectorizer.fit_transform([resume_text] + job_skills_list)
         cosine_sim = cosine_similarity(vectors[0:1], vectors[1:]).flatten()
         cosine_sim = np.nan_to_num(cosine_sim, nan=0.0)
@@ -378,14 +380,14 @@ def index():
                 jd_job_title = extract_job_title_from_jd(jd_text_manual)
             jd_comparison = compare_with_jd(skills, jd_skills)
 
-            # FIXED: Ultra lite session - only 4KB cookie safe
+            # RENDER SAFE: Ultra lite session - <1KB only
             session['analysis_data'] = {
-                'skills_found': skills[:8], # Max 8 skills only
+                'skills_found': skills[:5], # Max 5 skills only
                 'it_checked': it_only,
                 'jd_match_percent': jd_comparison['match_percent'] if jd_comparison else 0,
-                'jd_matched': jd_comparison['matched_skills'][:5] if jd_comparison else [],
-                'jd_missing': jd_comparison['missing_skills'][:3] if jd_comparison else [],
-                'applying_job_title': (jd_job_title or "Software Engineer")[:25],
+                'jd_matched': jd_comparison['matched_skills'][:3] if jd_comparison else [],
+                'jd_missing': jd_comparison['missing_skills'][:2] if jd_comparison else [],
+                'applying_job_title': (jd_job_title or "Software Engineer")[:20],
                 'ats_score': ats_score
             }
             print(f"DEBUG: Session set successfully with {len(skills)} skills")
@@ -541,4 +543,3 @@ def urlencode_filter(s):
 if __name__ == '__main__':
     print("🚀 CareerScope AI Pro - Production Ready")
     app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)
-    
