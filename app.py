@@ -17,16 +17,13 @@ import os
 import numpy as np
 from werkzeug.exceptions import RequestEntityTooLarge
 import gc
+import base64
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# RENDER FIX: Cookie settings for proxy HTTPS
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024 # 32MB
-app.config['SESSION_COOKIE_SECURE'] = False # Render proxy kosam False pettam
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-app.config['SESSION_REFRESH_EACH_REQUEST'] = False
+# NO SESSION CONFIG - Vadde vaddu
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
 bcrypt = Bcrypt(app)
 login_manager = LoginManager()
@@ -36,7 +33,7 @@ login_manager.login_message = 'Please login to continue'
 
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_too_large(e):
-    flash('File too large! Max 32MB allowed. Compress PDF or reduce JD text.', 'error')
+    flash('File too large! Max 32MB allowed.', 'error')
     return redirect(url_for('index'))
 
 @app.errorhandler(500)
@@ -80,12 +77,8 @@ try:
         'automation_risk': 'risk'
     })
     df_jobs = df_jobs.fillna({
-        'title': 'Unknown',
-        'skills': '',
-        'salary': 0,
-        'risk': 0,
-        'category': 'IT',
-        'location': 'Not Specified'
+        'title': 'Unknown', 'skills': '', 'salary': 0,
+        'risk': 0, 'category': 'IT', 'location': 'Not Specified'
     })
     df_jobs['salary'] = pd.to_numeric(df_jobs['salary'], errors='coerce').fillna(0)
     df_jobs['risk'] = pd.to_numeric(df_jobs['risk'], errors='coerce').fillna(0)
@@ -292,6 +285,18 @@ def compare_with_jd(resume_skills, jd_skills):
     return {"match_percent": match_percent, "matched_skills": matched, "missing_skills": missing[:6],
         "extra_skills": extra[:4], "total_jd_skills": len(jd_set), "total_matched": len(matched)}
 
+# ENCODE/DECODE FOR URL - SESSION BADULU IDI VAADU
+def encode_data(data):
+    json_str = json.dumps(data)
+    return base64.urlsafe_b64encode(json_str.encode()).decode()
+
+def decode_data(encoded_str):
+    try:
+        json_str = base64.urlsafe_b64decode(encoded_str.encode()).decode()
+        return json.loads(json_str)
+    except:
+        return None
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated: return redirect(url_for('index'))
@@ -380,18 +385,19 @@ def index():
                 jd_job_title = extract_job_title_from_jd(jd_text_manual)
             jd_comparison = compare_with_jd(skills, jd_skills)
 
-            # RENDER SAFE: Ultra lite session - <1KB only
-            session['analysis_data'] = {
-                'skills_found': skills[:5], # Max 5 skills only
-                'it_checked': it_only,
-                'jd_match_percent': jd_comparison['match_percent'] if jd_comparison else 0,
+            # RENDER FIX: Session vaddu, URL lo encode chesi pampistam
+            data_to_pass = {
+                'skills': skills[:5], # Max 5 skills
+                'it': 1 if it_only else 0,
+                'jd_match': jd_comparison['match_percent'] if jd_comparison else 0,
                 'jd_matched': jd_comparison['matched_skills'][:3] if jd_comparison else [],
                 'jd_missing': jd_comparison['missing_skills'][:2] if jd_comparison else [],
-                'applying_job_title': (jd_job_title or "Software Engineer")[:20],
-                'ats_score': ats_score
+                'title': (jd_job_title or "Software Engineer")[:20],
+                'ats': ats_score
             }
-            print(f"DEBUG: Session set successfully with {len(skills)} skills")
-            return redirect(url_for('skill_analysis'))
+            encoded = encode_data(data_to_pass)
+            print(f"DEBUG: Data encoded successfully, redirecting with data")
+            return redirect(url_for('skill_analysis', data=encoded))
         except Exception as e:
             print(f"❌ Error: {e}")
             return render_template('index.html', error=f"Processing error: {str(e)}")
@@ -400,20 +406,28 @@ def index():
 @app.route('/skill-analysis')
 @login_required
 def skill_analysis():
-    data = session.get('analysis_data')
-    print(f"DEBUG: Skill analysis accessed. Session data exists: {data is not None}")
+    encoded_data = request.args.get('data')
+    print(f"DEBUG: Skill analysis accessed. Data param exists: {encoded_data is not None}")
 
-    if not data:
-        flash('Session expired or data too large. Please upload resume again.', 'error')
+    if not encoded_data:
+        flash('No data found. Please upload resume again.', 'error')
         return redirect(url_for('index'))
 
-    results, charts = get_top_matches(data['skills_found'], data['it_checked'])
+    data = decode_data(encoded_data)
+    if not data:
+        flash('Invalid data. Please upload resume again.', 'error')
+        return redirect(url_for('index'))
 
-    # Recreate jd_comparison from lite session data
+    skills_list = data.get('skills', [])
+    it_checked = data.get('it', 0) == 1
+
+    results, charts = get_top_matches(skills_list, it_checked)
+
+    # Recreate jd_comparison
     jd_comparison = None
-    if data.get('jd_match_percent', 0) > 0:
+    if data.get('jd_match', 0) > 0:
         jd_comparison = {
-            'match_percent': data['jd_match_percent'],
+            'match_percent': data['jd_match'],
             'matched_skills': data.get('jd_matched', []),
             'missing_skills': data.get('jd_missing', []),
             'extra_skills': [],
@@ -423,20 +437,26 @@ def skill_analysis():
 
     return render_template('skill_analysis.html',
                          results=results,
-                         skills_found=data['skills_found'],
-                         it_checked=data['it_checked'],
+                         skills_found=skills_list,
+                         it_checked=it_checked,
                          charts=charts,
                          jd_comparison=jd_comparison,
-                         applying_job_title=data['applying_job_title'],
-                         title_source='job_description' if data.get('jd_match_percent', 0) > 0 else 'resume_match',
-                         ats_score=data['ats_score'])
+                         applying_job_title=data.get('title', 'Software Engineer'),
+                         title_source='job_description' if data.get('jd_match', 0) > 0 else 'resume_match',
+                         ats_score=data.get('ats', 0))
 
 @app.route('/job-matches')
 @login_required
 def job_matches():
-    data = session.get('analysis_data')
+    encoded_data = request.args.get('data')
+    if not encoded_data: return redirect(url_for('index'))
+    data = decode_data(encoded_data)
     if not data: return redirect(url_for('index'))
-    results, _ = get_top_matches(data['skills_found'], data['it_checked'])
+
+    skills_list = data.get('skills', [])
+    it_checked = data.get('it', 0) == 1
+    results, _ = get_top_matches(skills_list, it_checked)
+
     min_match = request.args.get('min_match', type=float, default=0)
     min_salary = request.args.get('min_salary', type=float, default=0)
     max_risk = request.args.get('max_risk', type=int, default=100)
@@ -459,7 +479,7 @@ def job_matches():
         'high_match': len([j for j in filtered if j['match'] >= 80])}
 
     return render_template('job_matches.html', results=filtered, stats=stats,
-                         applying_job_title=data['applying_job_title'],
+                         applying_job_title=data.get('title', 'Software Engineer'),
                          filters={'min_match': float(min_match), 'min_salary': float(min_salary),
                                   'max_risk': int(max_risk), 'sort': str(sort_by),
                                   'search': str(search), 'location': str(location)})
@@ -467,9 +487,14 @@ def job_matches():
 @app.route('/saved-jobs')
 @login_required
 def saved_jobs():
-    data = session.get('analysis_data')
+    encoded_data = request.args.get('data')
+    if not encoded_data: return redirect(url_for('index'))
+    data = decode_data(encoded_data)
     if not data: return redirect(url_for('index'))
-    results, _ = get_top_matches(data['skills_found'], data['it_checked'])
+
+    skills_list = data.get('skills', [])
+    it_checked = data.get('it', 0) == 1
+    results, _ = get_top_matches(skills_list, it_checked)
     safe_results = []
     for job in results:
         safe_results.append({
@@ -485,9 +510,14 @@ def saved_jobs():
 @login_required
 def compare():
     job_ids = request.args.getlist('job_id', type=int)
-    data = session.get('analysis_data')
+    encoded_data = request.args.get('data')
+    if not encoded_data: return redirect(url_for('index'))
+    data = decode_data(encoded_data)
     if not data: return redirect(url_for('index'))
-    results, _ = get_top_matches(data['skills_found'], data['it_checked'])
+
+    skills_list = data.get('skills', [])
+    it_checked = data.get('it', 0) == 1
+    results, _ = get_top_matches(skills_list, it_checked)
     compare_jobs = [j for j in results if j.get('id') in job_ids][:2]
     return render_template('compare.html', jobs=compare_jobs)
 
@@ -511,18 +541,22 @@ def email_alerts():
     if request.method == 'POST':
         email = request.form.get('email')
         min_match = request.form.get('min_match', 70)
-        session['email_alerts'] = {'email': email, 'min_match': min_match, 'enabled': True}
         return jsonify({'success': True, 'message': f'Alerts enabled for {email}'})
-    alerts = session.get('email_alerts', {'enabled': False})
+    alerts = {'enabled': False}
     return render_template('email_alerts.html', alerts=alerts)
 
 @app.route('/export-pdf')
 @login_required
 def export_pdf():
-    data = session.get('analysis_data')
+    encoded_data = request.args.get('data')
+    if not encoded_data: return redirect(url_for('index'))
+    data = decode_data(encoded_data)
     if not data: return redirect(url_for('index'))
-    results, _ = get_top_matches(data['skills_found'], data['it_checked'])
-    html = render_template('export_pdf.html', results=results[:5], applying_job_title=data['applying_job_title'],
+
+    skills_list = data.get('skills', [])
+    it_checked = data.get('it', 0) == 1
+    results, _ = get_top_matches(skills_list, it_checked)
+    html = render_template('export_pdf.html', results=results[:5], applying_job_title=data.get('title', 'Software Engineer'),
                           date=datetime.now().strftime('%Y-%m-%d'))
     response = make_response(html)
     response.headers['Content-Type'] = 'application/pdf'
@@ -532,7 +566,6 @@ def export_pdf():
 @app.route('/new-analysis')
 @login_required
 def new_analysis():
-    session.pop('analysis_data', None)
     return redirect(url_for('index'))
 
 @app.template_filter('urlencode')
