@@ -21,9 +21,10 @@ import gc
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# FIXED: Removed Flask-Session completely. Using default secure cookie sessions.
+# FIXED: Default Flask cookie sessions - No Flask-Session
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024 # 32MB
-app.config['SESSION_COOKIE_SECURE'] = True # For HTTPS on Render
+app.config['SESSION_COOKIE_SECURE'] = True
+app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 bcrypt = Bcrypt(app)
@@ -172,11 +173,11 @@ def extract_text_from_pdf(file):
     text = ""
     try:
         with pdfplumber.open(file) as pdf:
-            for page in pdf.pages[:10]:
+            for page in pdf.pages[:5]: # 10 nundi 5 ki taggincham - memory save
                 page_text = page.extract_text()
                 if page_text:
                     text += page_text + " "
-                    if len(text) > 50000:
+                    if len(text) > 30000: # 50k nundi 30k ki
                         break
     except Exception as e:
         print(f"PDF Error: {e}")
@@ -217,7 +218,7 @@ def get_top_matches(resume_skills, it_only=True):
     try:
         resume_text = " ".join(resume_skills)
         job_skills_list = df_jobs['skills'].fillna('').astype(str).str.lower().tolist()
-        vectorizer = TfidfVectorizer(stop_words='english', max_features=1000, ngram_range=(1, 2))
+        vectorizer = TfidfVectorizer(stop_words='english', max_features=500, ngram_range=(1, 2)) # 1000 nundi 500 ki
         vectors = vectorizer.fit_transform([resume_text] + job_skills_list)
         cosine_sim = cosine_similarity(vectors[0:1], vectors[1:]).flatten()
         cosine_sim = np.nan_to_num(cosine_sim, nan=0.0)
@@ -377,19 +378,17 @@ def index():
                 jd_job_title = extract_job_title_from_jd(jd_text_manual)
             jd_comparison = compare_with_jd(skills, jd_skills)
 
-            # FIXED: Reduced session data to avoid cookie overflow
+            # FIXED: Ultra lite session - only 4KB cookie safe
             session['analysis_data'] = {
-                'skills_found': skills[:20], # Max 20 skills only
+                'skills_found': skills[:8], # Max 8 skills only
                 'it_checked': it_only,
-                'jd_comparison': {
-                    'match_percent': jd_comparison['match_percent'] if jd_comparison else 0,
-                    'matched_skills': jd_comparison['matched_skills'][:10] if jd_comparison else [],
-                    'missing_skills': jd_comparison['missing_skills'][:5] if jd_comparison else []
-                } if jd_comparison else None,
-                'applying_job_title': (jd_job_title or "Software Engineer")[:50],
-                'title_source': "job_description" if jd_job_title else "resume_match",
+                'jd_match_percent': jd_comparison['match_percent'] if jd_comparison else 0,
+                'jd_matched': jd_comparison['matched_skills'][:5] if jd_comparison else [],
+                'jd_missing': jd_comparison['missing_skills'][:3] if jd_comparison else [],
+                'applying_job_title': (jd_job_title or "Software Engineer")[:25],
                 'ats_score': ats_score
             }
+            print(f"DEBUG: Session set successfully with {len(skills)} skills")
             return redirect(url_for('skill_analysis'))
         except Exception as e:
             print(f"❌ Error: {e}")
@@ -400,14 +399,35 @@ def index():
 @login_required
 def skill_analysis():
     data = session.get('analysis_data')
-    if not data: return redirect(url_for('index'))
+    print(f"DEBUG: Skill analysis accessed. Session data exists: {data is not None}")
+
+    if not data:
+        flash('Session expired or data too large. Please upload resume again.', 'error')
+        return redirect(url_for('index'))
+
     results, charts = get_top_matches(data['skills_found'], data['it_checked'])
+
+    # Recreate jd_comparison from lite session data
+    jd_comparison = None
+    if data.get('jd_match_percent', 0) > 0:
+        jd_comparison = {
+            'match_percent': data['jd_match_percent'],
+            'matched_skills': data.get('jd_matched', []),
+            'missing_skills': data.get('jd_missing', []),
+            'extra_skills': [],
+            'total_jd_skills': len(data.get('jd_matched', [])) + len(data.get('jd_missing', [])),
+            'total_matched': len(data.get('jd_matched', []))
+        }
+
     return render_template('skill_analysis.html',
-                         results=results, skills_found=data['skills_found'],
-                         it_checked=data['it_checked'], charts=charts,
-                         jd_comparison=data.get('jd_comparison'),
+                         results=results,
+                         skills_found=data['skills_found'],
+                         it_checked=data['it_checked'],
+                         charts=charts,
+                         jd_comparison=jd_comparison,
                          applying_job_title=data['applying_job_title'],
-                         title_source=data['title_source'], ats_score=data['ats_score'])
+                         title_source='job_description' if data.get('jd_match_percent', 0) > 0 else 'resume_match',
+                         ats_score=data['ats_score'])
 
 @app.route('/job-matches')
 @login_required
@@ -521,3 +541,4 @@ def urlencode_filter(s):
 if __name__ == '__main__':
     print("🚀 CareerScope AI Pro - Production Ready")
     app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)
+    
