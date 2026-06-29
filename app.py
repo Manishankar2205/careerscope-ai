@@ -21,8 +21,10 @@ import gc
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# FIXED: Removed Flask-Session, using default Flask cookie sessions
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 # 32MB
+# FIXED: Removed Flask-Session completely. Using default secure cookie sessions.
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024 # 32MB
+app.config['SESSION_COOKIE_SECURE'] = True # For HTTPS on Render
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
 bcrypt = Bcrypt(app)
 login_manager = LoginManager()
@@ -105,26 +107,16 @@ SKILLS = [
 ]
 
 COMPANY_CAREERS = {
-    'tcs': 'https://www.tcs.com/careers',
-    'infosys': 'https://www.infosys.com/careers',
-    'wipro': 'https://careers.wipro.com',
-    'hcl': 'https://www.hcltech.com/careers',
-    'tech mahindra': 'https://careers.techmahindra.com',
-    'cognizant': 'https://careers.cognizant.com',
-    'accenture': 'https://www.accenture.com/in-en/careers',
-    'capgemini': 'https://www.capgemini.com/careers',
-    'ibm': 'https://www.ibm.com/careers',
-    'microsoft': 'https://careers.microsoft.com',
-    'google': 'https://careers.google.com',
-    'amazon': 'https://www.amazon.jobs',
-    'oracle': 'https://www.oracle.com/careers',
-    'dell': 'https://jobs.dell.com',
-    'cisco': 'https://jobs.cisco.com',
-    'adobe': 'https://careers.adobe.com',
-    'salesforce': 'https://careers.salesforce.com',
-    'zoho': 'https://careers.zohocorp.com',
-    'flipkart': 'https://www.flipkartcareers.com',
-    'paytm': 'https://jobs.paytm.com'
+    'tcs': 'https://www.tcs.com/careers', 'infosys': 'https://www.infosys.com/careers',
+    'wipro': 'https://careers.wipro.com', 'hcl': 'https://www.hcltech.com/careers',
+    'tech mahindra': 'https://careers.techmahindra.com', 'cognizant': 'https://careers.cognizant.com',
+    'accenture': 'https://www.accenture.com/in-en/careers', 'capgemini': 'https://www.capgemini.com/careers',
+    'ibm': 'https://www.ibm.com/careers', 'microsoft': 'https://careers.microsoft.com',
+    'google': 'https://careers.google.com', 'amazon': 'https://www.amazon.jobs',
+    'oracle': 'https://www.oracle.com/careers', 'dell': 'https://jobs.dell.com',
+    'cisco': 'https://jobs.cisco.com', 'adobe': 'https://careers.adobe.com',
+    'salesforce': 'https://careers.salesforce.com', 'zoho': 'https://careers.zohocorp.com',
+    'flipkart': 'https://www.flipkartcareers.com', 'paytm': 'https://jobs.paytm.com'
 }
 
 INTERVIEW_QUESTIONS = {
@@ -251,16 +243,10 @@ def get_top_matches(resume_skills, it_only=True):
             location = str(row.get('location', 'Not Specified'))
 
             results.append({
-                "title": job_title_str,
-                "match": float(row.get('match', 0)),
-                "salary": float(row.get('salary', 0)),
-                "risk": int(row.get('risk', 0)),
-                "missing": missing,
-                "category": category,
-                "location": location,
-                "apply_url": apply_url,
-                "company_name": company_name,
-                "id": int(idx)
+                "title": job_title_str, "match": float(row.get('match', 0)),
+                "salary": float(row.get('salary', 0)), "risk": int(row.get('risk', 0)),
+                "missing": missing, "category": category, "location": location,
+                "apply_url": apply_url, "company_name": company_name, "id": int(idx)
             })
         except Exception as e:
             print(f"Row error {idx}: {e}")
@@ -271,50 +257,22 @@ def get_top_matches(resume_skills, it_only=True):
     return top10, chart_data
 
 def create_charts(jobs, applying_job_title="Job Match", jd_match_percent=None):
-    if not jobs:
-        return None
+    if not jobs: return None
     try:
         top_job = jobs[0]
         score = jd_match_percent if jd_match_percent is not None else top_job['match']
-
         fig = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = score,
-            domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {
-                'text': f"Top Match Job<br><span style='font-size:0.8em;color:#00ff88'>{applying_job_title if jd_match_percent else top_job['title']}</span>",
-                'font': {'size': 20, 'color': 'white'}
-            },
-            number = {
-                'font': {'size': 50, 'color': '#00ff88'},
-                'suffix': '%'
-            },
-            gauge = {
-                'axis': {'range': [None, 100], 'tickcolor': 'white'},
-                'bar': {'color': "#00ff88", 'thickness': 0.75},
-                'bgcolor': "rgba(0,0,0,0)",
-                'borderwidth': 2,
-                'bordercolor': "#334155",
-                'steps': [
-                    {'range': [0, 40], 'color': 'rgba(239, 68, 68, 0.3)'},
-                    {'range': [40, 70], 'color': 'rgba(251, 191, 36, 0.3)'},
-                    {'range': [70, 100], 'color': 'rgba(0, 255, 136, 0.3)'}
-                ],
-                'threshold': {
-                    'line': {'color': "white", 'width': 4},
-                    'thickness': 0.75,
-                    'value': 80
-                }
-            }
-        ))
-
-        fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            font={'color': "white", 'family': "Poppins, Arial"},
-            height=320,
-            margin=dict(l=30, r=30, t=80, b=30)
-        )
+            mode = "gauge+number", value = score, domain = {'x': [0, 1], 'y': [0, 1]},
+            title = {'text': f"Top Match Job<br><span style='font-size:0.8em;color:#00ff88'>{applying_job_title if jd_match_percent else top_job['title']}</span>", 'font': {'size': 20, 'color': 'white'}},
+            number = {'font': {'size': 50, 'color': '#00ff88'}, 'suffix': '%'},
+            gauge = {'axis': {'range': [None, 100], 'tickcolor': 'white'}, 'bar': {'color': "#00ff88", 'thickness': 0.75},
+                'bgcolor': "rgba(0,0,0,0)", 'borderwidth': 2, 'bordercolor': "#334155",
+                'steps': [{'range': [0, 40], 'color': 'rgba(239, 68, 68, 0.3)'},
+                          {'range': [40, 70], 'color': 'rgba(251, 191, 36, 0.3)'},
+                          {'range': [70, 100], 'color': 'rgba(0, 255, 136, 0.3)'}],
+                'threshold': {'line': {'color': "white", 'width': 4}, 'thickness': 0.75, 'value': 80}}))
+        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+            font={'color': "white", 'family': "Poppins, Arial"}, height=320, margin=dict(l=30, r=30, t=80, b=30))
         return {"gauge": json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder), "top_job": top_job}
     except Exception as e:
         print(f"Chart Error: {e}")
@@ -419,11 +377,16 @@ def index():
                 jd_job_title = extract_job_title_from_jd(jd_text_manual)
             jd_comparison = compare_with_jd(skills, jd_skills)
 
+            # FIXED: Reduced session data to avoid cookie overflow
             session['analysis_data'] = {
-                'skills_found': skills[:50],
+                'skills_found': skills[:20], # Max 20 skills only
                 'it_checked': it_only,
-                'jd_comparison': jd_comparison,
-                'applying_job_title': jd_job_title or "Software Engineer",
+                'jd_comparison': {
+                    'match_percent': jd_comparison['match_percent'] if jd_comparison else 0,
+                    'matched_skills': jd_comparison['matched_skills'][:10] if jd_comparison else [],
+                    'missing_skills': jd_comparison['missing_skills'][:5] if jd_comparison else []
+                } if jd_comparison else None,
+                'applying_job_title': (jd_job_title or "Software Engineer")[:50],
                 'title_source': "job_description" if jd_job_title else "resume_match",
                 'ats_score': ats_score
             }
@@ -440,14 +403,11 @@ def skill_analysis():
     if not data: return redirect(url_for('index'))
     results, charts = get_top_matches(data['skills_found'], data['it_checked'])
     return render_template('skill_analysis.html',
-                         results=results,
-                         skills_found=data['skills_found'],
-                         it_checked=data['it_checked'],
-                         charts=charts,
+                         results=results, skills_found=data['skills_found'],
+                         it_checked=data['it_checked'], charts=charts,
                          jd_comparison=data.get('jd_comparison'),
                          applying_job_title=data['applying_job_title'],
-                         title_source=data['title_source'],
-                         ats_score=data['ats_score'])
+                         title_source=data['title_source'], ats_score=data['ats_score'])
 
 @app.route('/job-matches')
 @login_required
@@ -488,22 +448,15 @@ def saved_jobs():
     data = session.get('analysis_data')
     if not data: return redirect(url_for('index'))
     results, _ = get_top_matches(data['skills_found'], data['it_checked'])
-
     safe_results = []
     for job in results:
         safe_results.append({
-            'id': int(job.get('id', 0)),
-            'title': str(job.get('title', 'Unknown')),
-            'category': str(job.get('category', 'IT')),
-            'location': str(job.get('location', 'Not Specified')),
-            'salary': float(job.get('salary', 0)),
-            'risk': int(job.get('risk', 0)),
-            'match': float(job.get('match', 0)),
-            'apply_url': str(job.get('apply_url', '#')),
-            'company_name': job.get('company_name'),
-            'missing': job.get('missing', [])
+            'id': int(job.get('id', 0)), 'title': str(job.get('title', 'Unknown')),
+            'category': str(job.get('category', 'IT')), 'location': str(job.get('location', 'Not Specified')),
+            'salary': float(job.get('salary', 0)), 'risk': int(job.get('risk', 0)),
+            'match': float(job.get('match', 0)), 'apply_url': str(job.get('apply_url', '#')),
+            'company_name': job.get('company_name'), 'missing': job.get('missing', [])
         })
-
     return render_template('saved_jobs.html', jobs=safe_results)
 
 @app.route('/compare')
