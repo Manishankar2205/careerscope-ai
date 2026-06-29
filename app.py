@@ -13,7 +13,6 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_bcrypt import Bcrypt
 import sqlite3
 import secrets
-from flask_session import Session
 import os
 import numpy as np
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -22,14 +21,8 @@ import gc
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# FIX 1: Increase limit + proper config
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024 # 32MB
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SESSION_FILE_DIR'] = './flask_session'
-app.config['SESSION_PERMANENT'] = False
-app.config['SESSION_USE_SIGNER'] = True
-app.config['SESSION_FILE_THRESHOLD'] = 100 # Auto cleanup old sessions
-Session(app)
+# FIXED: Removed Flask-Session, using default Flask cookie sessions
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 # 32MB
 
 bcrypt = Bcrypt(app)
 login_manager = LoginManager()
@@ -37,7 +30,6 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please login to continue'
 
-# FIX 2: 413 Error Handler - User ki clear message
 @app.errorhandler(RequestEntityTooLarge)
 def handle_file_too_large(e):
     flash('File too large! Max 32MB allowed. Compress PDF or reduce JD text.', 'error')
@@ -183,25 +175,22 @@ def create_salary_trend_chart(job_title, current_salary):
         font={'color': "white", 'family': "Poppins"}, height=400)
     return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
 
-# FIX 3: PDF extract timeout + limit
 def extract_text_from_pdf(file):
     if not file or not hasattr(file, 'filename') or not file.filename: return ""
     text = ""
     try:
         with pdfplumber.open(file) as pdf:
-            # Max 10 pages matrame read chey - memory save kosam
             for page in pdf.pages[:10]:
                 page_text = page.extract_text()
-                if page_text: 
+                if page_text:
                     text += page_text + " "
-                    # 50000 chars kanna ekkuva aithe stop
                     if len(text) > 50000:
                         break
     except Exception as e:
         print(f"PDF Error: {e}")
         return ""
     finally:
-        gc.collect() # Memory cleanup
+        gc.collect()
     return text.strip()
 
 def extract_skills_from_text(text):
@@ -278,7 +267,7 @@ def get_top_matches(resume_skills, it_only=True):
             continue
     top10 = sorted(results, key=lambda x: x['match'], reverse=True)[:10]
     chart_data = create_charts(top10) if top10 else None
-    gc.collect() # Memory cleanup
+    gc.collect()
     return top10, chart_data
 
 def create_charts(jobs, applying_job_title="Job Match", jd_match_percent=None):
@@ -287,13 +276,13 @@ def create_charts(jobs, applying_job_title="Job Match", jd_match_percent=None):
     try:
         top_job = jobs[0]
         score = jd_match_percent if jd_match_percent is not None else top_job['match']
-        
+
         fig = go.Figure(go.Indicator(
             mode = "gauge+number",
             value = score,
-            domain = {'x': [0, 1], 'y': [0, 1]}, 
+            domain = {'x': [0, 1], 'y': [0, 1]},
             title = {
-                'text': f"Top Match Job<br><span style='font-size:0.8em;color:#00ff88'>{applying_job_title if jd_match_percent else top_job['title']}</span>", 
+                'text': f"Top Match Job<br><span style='font-size:0.8em;color:#00ff88'>{applying_job_title if jd_match_percent else top_job['title']}</span>",
                 'font': {'size': 20, 'color': 'white'}
             },
             number = {
@@ -301,29 +290,29 @@ def create_charts(jobs, applying_job_title="Job Match", jd_match_percent=None):
                 'suffix': '%'
             },
             gauge = {
-                'axis': {'range': [None, 100], 'tickcolor': 'white'}, 
+                'axis': {'range': [None, 100], 'tickcolor': 'white'},
                 'bar': {'color': "#00ff88", 'thickness': 0.75},
-                'bgcolor': "rgba(0,0,0,0)", 
-                'borderwidth': 2, 
+                'bgcolor': "rgba(0,0,0,0)",
+                'borderwidth': 2,
                 'bordercolor': "#334155",
                 'steps': [
-                    {'range': [0, 40], 'color': 'rgba(239, 68, 68, 0.3)'}, 
+                    {'range': [0, 40], 'color': 'rgba(239, 68, 68, 0.3)'},
                     {'range': [40, 70], 'color': 'rgba(251, 191, 36, 0.3)'},
                     {'range': [70, 100], 'color': 'rgba(0, 255, 136, 0.3)'}
                 ],
                 'threshold': {
-                    'line': {'color': "white", 'width': 4}, 
-                    'thickness': 0.75, 
+                    'line': {'color': "white", 'width': 4},
+                    'thickness': 0.75,
                     'value': 80
                 }
             }
         ))
-        
+
         fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)", 
+            paper_bgcolor="rgba(0,0,0,0)",
             plot_bgcolor="rgba(0,0,0,0)",
-            font={'color': "white", 'family': "Poppins, Arial"}, 
-            height=320, 
+            font={'color': "white", 'family': "Poppins, Arial"},
+            height=320,
             margin=dict(l=30, r=30, t=80, b=30)
         )
         return {"gauge": json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder), "top_job": top_job}
@@ -402,11 +391,10 @@ def index():
         jd_file = request.files.get('jd_pdf')
         it_only = request.form.get('it_only') == 'on'
         jd_text_manual = request.form.get('job_description', '').strip()
-        
-        # FIX 4: JD text limit - 10000 chars max
+
         if len(jd_text_manual) > 10000:
             return render_template('index.html', error="Job Description too long! Max 10,000 characters.")
-        
+
         if not resume_file or not resume_file.filename:
             return render_template('index.html', error="Please upload your resume PDF")
         try:
@@ -431,9 +419,8 @@ def index():
                 jd_job_title = extract_job_title_from_jd(jd_text_manual)
             jd_comparison = compare_with_jd(skills, jd_skills)
 
-            # FIX 5: Session lo lite data matrame store chey
             session['analysis_data'] = {
-                'skills_found': skills[:50], # Max 50 skills
+                'skills_found': skills[:50],
                 'it_checked': it_only,
                 'jd_comparison': jd_comparison,
                 'applying_job_title': jd_job_title or "Software Engineer",
@@ -579,6 +566,5 @@ def urlencode_filter(s):
     return s
 
 if __name__ == '__main__':
-    # FIX 6: Production mode - debug off cheste fast + stable
     print("🚀 CareerScope AI Pro - Production Ready")
     app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)
