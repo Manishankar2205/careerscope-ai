@@ -1,615 +1,672 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response, flash
-import pandas as pd
-import pdfplumber
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-import re
-import plotly.graph_objects as go
-import plotly.utils
-import json
-import urllib.parse
-from datetime import datetime
+from flask import Flask, render_template, request, redirect, url_for, flash, session, send_file
+from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_bcrypt import Bcrypt
-import sqlite3
-import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+import PyPDF2
+import json
+from io import BytesIO
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+import plotly.graph_objs as go
+import plotly
+from datetime import datetime
+import re
 import os
-import numpy as np
-from werkzeug.exceptions import RequestEntityTooLarge
-import gc
-import base64
-import traceback
 
 app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
+app.config['SECRET_KEY'] = 'your-secret-key-change-in-production'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///careerscope.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 
-bcrypt = Bcrypt(app)
-login_manager = LoginManager()
-login_manager.init_app(app)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-login_manager.login_message = 'Please login to continue'
 
-@app.errorhandler(RequestEntityTooLarge)
-def handle_file_too_large(e):
-    flash('File too large! Max 32MB allowed.', 'error')
-    return redirect(url_for('index'))
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-@app.errorhandler(500)
-def handle_500(e):
-    print(f"500 Error: {e}")
-    traceback.print_exc()
-    flash('Server error occurred. Please try again.', 'error')
-    return redirect(url_for('index'))
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
 
-def init_db():
-    conn = sqlite3.connect('careerscope_users.db')
-    conn.execute('''CREATE TABLE IF NOT EXISTS users
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  name TEXT NOT NULL,
-                  email TEXT UNIQUE NOT NULL,
-                  password TEXT NOT NULL)''')
-    conn.close()
-init_db()
-
-class User(UserMixin):
-    def __init__(self, id, name, email):
-        self.id = id
-        self.name = name
-        self.email = email
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = sqlite3.connect('careerscope_users.db')
-    cur = conn.cursor()
-    cur.execute("SELECT id, name, email FROM users WHERE id =?", (user_id,))
-    user = cur.fetchone()
-    conn.close()
-    if user:
-        return User(user[0], user[1], user[2])
-    return None
+    return User.query.get(int(user_id))
 
-# ✅ LOAD JOBS WITH ERROR HANDLING
-try:
-    df_jobs = pd.read_csv('data/it_jobs_100.csv', encoding='utf-8')
-    df_jobs = df_jobs.rename(columns={
-        'job_title': 'title',
-        'salary_lpa': 'salary',
-        'automation_risk': 'risk'
-    })
-    df_jobs = df_jobs.fillna({
-        'title': 'Unknown', 'skills': '', 'salary': 0,
-        'risk': 0, 'category': 'IT', 'location': 'Not Specified', 'description': 'No description available'
-    })
-    df_jobs['salary'] = pd.to_numeric(df_jobs['salary'], errors='coerce').fillna(0)
-    df_jobs['risk'] = pd.to_numeric(df_jobs['risk'], errors='coerce').fillna(0)
-    print(f"✅ Loaded {len(df_jobs)} jobs from CSV")
-except Exception as e:
-    print(f"❌ CSV Error: {e} - Using empty dataframe")
-    df_jobs = pd.DataFrame(columns=['title', 'skills', 'salary', 'risk', 'category', 'location', 'description'])
-
-SKILLS = [
-    'python','java','sql','excel','tableau','powerbi','javascript','react','angular','vue',
-    'nodejs','django','flask','spring','springboot','hibernate','html','css','typescript',
-    'git','docker','kubernetes','jenkins','aws','azure','gcp','linux','mongodb','mysql',
-    'postgresql','oracle','hadoop','spark','kafka','tensorflow','pytorch','machinelearning',
-    'deeplearning','nlp','dsa','oop','systemdesign','api','rest','microservices',
-    'agile','scrum','jira','selenium','figma','adobexd','android','kotlin','ios','swift',
-    'flutter','dart','unity','c#','solidity','web3','security','networking','ccna',
-    'activeDirectory','sre','salesforce','apex','sap','abap','erp','etl','informatica',
-    'ssis','bigdata','terraform','cloudArchitecture','uipath','rpa','iot','arduino',
-    'embeddedSystems','firmware','wordpress','php','laravel','dotnet','aspnet','mvc',
-    'go','golang','rust','ruby','rails','seo','googleAnalytics','sem','socialMedia',
-    'communication','problemsolving','leadership','teamwork','projectmanagement','airflow'
-]
-
-COMPANY_CAREERS = {
-    'tcs': 'https://www.tcs.com/careers', 'infosys': 'https://www.infosys.com/careers',
-    'wipro': 'https://careers.wipro.com', 'hcl': 'https://www.hcltech.com/careers',
-    'tech mahindra': 'https://careers.techmahindra.com', 'cognizant': 'https://careers.cognizant.com',
-    'accenture': 'https://www.accenture.com/in-en/careers', 'capgemini': 'https://www.capgemini.com/careers',
-    'ibm': 'https://www.ibm.com/careers', 'microsoft': 'https://careers.microsoft.com',
-    'google': 'https://careers.google.com', 'amazon': 'https://www.amazon.jobs',
-    'oracle': 'https://www.oracle.com/careers', 'dell': 'https://jobs.dell.com',
-    'cisco': 'https://jobs.cisco.com', 'adobe': 'https://careers.adobe.com',
-    'salesforce': 'https://careers.salesforce.com', 'zoho': 'https://careers.zohocorp.com',
-    'flipkart': 'https://www.flipkartcareers.com', 'paytm': 'https://jobs.paytm.com'
+RESUME_TEMPLATES = {
+    'modern': {'name': 'Modern Professional', 'color': '#3b82f6', 'desc': 'Clean & ATS friendly'},
+    'classic': {'name': 'Classic Formal', 'color': '#1e293b', 'desc': 'Traditional business'},
+    'creative': {'name': 'Creative Bold', 'color': '#8b5cf6', 'desc': 'Stand out design'},
+    'minimal': {'name': 'Minimal Simple', 'color': '#10b981', 'desc': 'Simple & effective'},
+    'executive': {'name': 'Executive Elite', 'color': '#f59e0b', 'desc': 'Premium executive'},
 }
 
-INTERVIEW_QUESTIONS = {
-    'tcs': ['Explain SDLC', 'What is OOP?', 'SQL Joins', 'Python vs Java'],
-    'infosys': ['Data Structures', 'DBMS Concepts', 'Cloud Basics', 'Agile Methodology'],
-    'google': ['System Design', 'Algorithms', 'Behavioral Questions', 'Coding Challenge'],
-    'amazon': ['Leadership Principles', 'DSA Problems', 'System Design', 'Bar Raiser Round'],
-    'default': ['Tell me about yourself', 'Why this company?', 'Strengths & Weaknesses', 'Where do you see yourself in 5 years?']
+COVER_LETTER_TEMPLATES = {
+    'modern': {'name': 'Modern Professional', 'color': '#3b82f6', 'desc': 'Clean & ATS friendly'},
+    'classic': {'name': 'Classic Formal', 'color': '#1e293b', 'desc': 'Traditional business'},
+    'creative': {'name': 'Creative Bold', 'color': '#8b5cf6', 'desc': 'Stand out design'},
+    'minimal': {'name': 'Minimal Simple', 'color': '#10b981', 'desc': 'Simple & effective'},
 }
 
-def get_apply_url(job_title):
-    if not job_title: return "https://www.linkedin.com/jobs"
-    title_lower = job_title.lower()
-    for company, url in COMPANY_CAREERS.items():
-        if company in title_lower: return url
-    return f"https://www.linkedin.com/jobs/search?keywords={urllib.parse.quote_plus(job_title)}"
+SKILL_ROADMAPS = {
+    'Python': {
+        'title': 'Python Developer Roadmap',
+        'stages': [
+            {'name': 'Basics', 'topics': ['Syntax', 'Variables', 'Data Types', 'Operators', 'Control Flow']},
+            {'name': 'Intermediate', 'topics': ['Functions', 'OOP', 'File Handling', 'Error Handling', 'Modules']},
+            {'name': 'Advanced', 'topics': ['Decorators', 'Generators', 'Context Managers', 'Async/Await', 'Metaclasses']},
+            {'name': 'Frameworks', 'topics': ['Django', 'Flask', 'FastAPI', 'Pyramid']},
+            {'name': 'Tools', 'topics': ['Git', 'Docker', 'Testing', 'CI/CD', 'Package Management']}
+        ],
+        'youtube': 'https://www.youtube.com/results?search_query=Python+tutorial+roadmap'
+    },
+    'REST API': {
+        'title': 'REST API Developer Roadmap',
+        'stages': [
+            {'name': 'Basics', 'topics': ['HTTP Methods', 'Status Codes', 'JSON', 'Headers', 'URL Structure']},
+            {'name': 'Design', 'topics': ['REST Principles', 'Resource Naming', 'CRUD Operations', 'Versioning']},
+            {'name': 'Security', 'topics': ['Authentication', 'OAuth2', 'JWT', 'API Keys', 'CORS']},
+            {'name': 'Advanced', 'topics': ['Pagination', 'Filtering', 'Rate Limiting', 'Caching', 'Webhooks']},
+            {'name': 'Tools', 'topics': ['Postman', 'Swagger', 'Insomnia', 'API Testing', 'Documentation']}
+        ],
+        'youtube': 'https://www.youtube.com/results?search_query=REST+API+tutorial+roadmap'
+    },
+    'JavaScript': {
+        'title': 'JavaScript Developer Roadmap',
+        'stages': [
+            {'name': 'Basics', 'topics': ['Syntax', 'Variables', 'Data Types', 'Functions', 'Arrays', 'Objects']},
+            {'name': 'DOM', 'topics': ['Selectors', 'Events', 'Manipulation', 'AJAX', 'Fetch API']},
+            {'name': 'ES6+', 'topics': ['Arrow Functions', 'Destructuring', 'Promises', 'Async/Await', 'Modules']},
+            {'name': 'Frameworks', 'topics': ['React', 'Vue', 'Angular', 'Node.js', 'Express']},
+            {'name': 'Tools', 'topics': ['npm', 'Webpack', 'Babel', 'Testing', 'TypeScript']}
+        ],
+        'youtube': 'https://www.youtube.com/results?search_query=JavaScript+tutorial+roadmap'
+    },
+    'React': {
+        'title': 'React Developer Roadmap',
+        'stages': [
+            {'name': 'Basics', 'topics': ['JSX', 'Components', 'Props', 'State', 'Events']},
+            {'name': 'Hooks', 'topics': ['useState', 'useEffect', 'useContext', 'useReducer', 'Custom Hooks']},
+            {'name': 'Routing', 'topics': ['React Router', 'Navigation', 'Protected Routes', 'Dynamic Routes']},
+            {'name': 'State Management', 'topics': ['Context API', 'Redux', 'Zustand', 'Recoil']},
+            {'name': 'Advanced', 'topics': ['Performance', 'Testing', 'Next.js', 'TypeScript']}
+        ],
+        'youtube': 'https://www.youtube.com/results?search_query=React+tutorial+roadmap'
+    },
+    'Docker': {
+        'title': 'Docker DevOps Roadmap',
+        'stages': [
+            {'name': 'Basics', 'topics': ['Containers', 'Images', 'Dockerfile', 'Docker Hub']},
+            {'name': 'Commands', 'topics': ['docker run', 'docker build', 'docker ps', 'docker exec']},
+            {'name': 'Compose', 'topics': ['docker-compose.yml', 'Multi-container', 'Networks', 'Volumes']},
+            {'name': 'Advanced', 'topics': ['Docker Swarm', 'Kubernetes', 'CI/CD', 'Security']},
+            {'name': 'Production', 'topics': ['Best Practices', 'Monitoring', 'Logging', 'Scaling']}
+        ],
+        'youtube': 'https://www.youtube.com/results?search_query=Docker+tutorial+roadmap'
+    },
+    'AWS': {
+        'title': 'AWS Cloud Roadmap',
+        'stages': [
+            {'name': 'Basics', 'topics': ['IAM', 'EC2', 'S3', 'VPC', 'CloudWatch']},
+            {'name': 'Compute', 'topics': ['Lambda', 'ECS', 'EKS', 'Auto Scaling']},
+            {'name': 'Database', 'topics': ['RDS', 'DynamoDB', 'ElastiCache', 'Redshift']},
+            {'name': 'Networking', 'topics': ['Route 53', 'CloudFront', 'API Gateway', 'Load Balancer']},
+            {'name': 'DevOps', 'topics': ['CodePipeline', 'CodeBuild', 'CloudFormation', 'Terraform']}
+        ],
+        'youtube': 'https://www.youtube.com/results?search_query=AWS+tutorial+roadmap'
+    }
+}
 
-def get_company_name(job_title):
-    if not job_title: return None
-    title_lower = job_title.lower()
-    for company in COMPANY_CAREERS.keys():
-        if company in title_lower: return company.upper()
-    return None
-
-def calculate_ats_score(resume_text, skills):
-    score = 0
-    skill_score = min(len(skills) * 4, 40)
-    score += skill_score
-    keywords = ['experience', 'project', 'achieved', 'developed', 'managed', 'led', 'improved']
-    keyword_count = sum(1 for kw in keywords if kw in resume_text.lower())
-    score += min(keyword_count * 5, 30)
-    if len(resume_text) > 500: score += 10
-    if 'education' in resume_text.lower(): score += 5
-    if 'email' in resume_text.lower() or '@' in resume_text: score += 5
-    if re.search(r'\d{10}', resume_text): score += 5
-    if 'linkedin' in resume_text.lower(): score += 5
-    return min(score, 100)
-
-def create_salary_trend_chart(job_title, current_salary):
-    experience = [0, 2, 4, 6, 8, 10]
-    base_salary = float(current_salary)
-    salaries = [round(base_salary * (1 + i*0.15), 1) for i in experience]
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=experience, y=salaries, mode='lines+markers', name='Projected Salary',
-        line=dict(color='#22d3ee', width=3), marker=dict(size=10, color='#22d3ee')))
-    fig.update_layout(title=f'Salary Growth Projection - {job_title}', xaxis_title='Experience (Years)',
-        yaxis_title='Salary (LPA)', paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-        font={'color': "white", 'family': "Poppins"}, height=400)
-    return json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
-def extract_text_from_pdf(file):
-    if not file or not hasattr(file, 'filename') or not file.filename:
-        return ""
-    text = ""
+def extract_pdf_text(file):
     try:
-        with pdfplumber.open(file) as pdf:
-            for page in pdf.pages[:5]:
-                page_text = page.extract_text()
-                if page_text:
-                    text += page_text + " "
-                    if len(text) > 30000:
-                        break
+        pdf_reader = PyPDF2.PdfReader(file)
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        return text
     except Exception as e:
-        print(f"PDF Error: {e}")
         return ""
-    finally:
-        gc.collect()
-    return text.strip()
 
 def extract_skills_from_text(text):
-    if not text or not isinstance(text, str):
-        return []
-    text = text.lower()
-    text = re.sub(r'[^a-zA-Z0-9\s#+]', ' ', text)
+    skill_keywords = [
+        'Python', 'Java', 'JavaScript', 'React', 'Node.js', 'Django', 'Flask',
+        'HTML', 'CSS', 'SQL', 'MongoDB', 'PostgreSQL', 'Git', 'Docker', 'AWS',
+        'Machine Learning', 'Data Science', 'AI', 'TensorFlow', 'PyTorch',
+        'REST API', 'GraphQL', 'TypeScript', 'Vue', 'Angular', 'Express',
+        'Kubernetes', 'CI/CD', 'Linux', 'Agile', 'Scrum', 'DevOps'
+    ]
     found_skills = []
-    for skill in SKILLS:
-        pattern = r'\b' + re.escape(skill.lower()) + r'\b'
-        if re.search(pattern, text):
+    text_lower = text.lower()
+    for skill in skill_keywords:
+        if skill.lower() in text_lower:
             found_skills.append(skill)
-    return sorted(list(set(found_skills)))
+    return list(set(found_skills))
 
-def extract_job_title_from_jd(text):
-    if not text or not isinstance(text, str): return None
-    text = text.strip()
-    lines = text.split('\n')[:10]
-    patterns = [r'(?:job\s*title|position|role|designation)\s*[:\-]\s*([^\n\r]{3,60})',
-        r'^([A-Z][A-Za-z\s/&-]{3,50})\s*(?:at|@|\-)', r'^([A-Z][A-Za-z\s/&-]{3,50})\s*$']
-    for line in lines:
+def analyze_job_description(jd_text):
+    skills = extract_skills_from_text(jd_text)
+    lines = jd_text.split('\n')
+    job_title = "Software Developer"
+    for line in lines[:5]:
+        if any(word in line.lower() for word in ['developer', 'engineer', 'analyst', 'manager', 'api']):
+            job_title = line.strip()
+            break
+    return job_title, skills
+
+def calculate_ats_score(resume_text, target_skills):
+    resume_skills = extract_skills_from_text(resume_text)
+    matched = len(set(resume_skills) & set(target_skills))
+    total = len(target_skills) if target_skills else 1
+    score = int((matched / total) * 100)
+    return max(min(score, 100), 30)
+
+def generate_resume_content(resume_text, target_job, target_skills, template='modern'):
+    lines = resume_text.split('\n')
+    name = "Your Name"
+    email = "email@example.com"
+    phone = "+91 XXXXX XXXXX"
+    linkedin = ""
+    github = ""
+    location = "Yanam, Andhra Pradesh, India"
+
+    for line in lines[:15]:
         line = line.strip()
-        if len(line) < 5 or len(line) > 80: continue
-        for pattern in patterns:
-            match = re.search(pattern, line, re.IGNORECASE)
-            if match:
-                title = match.group(1).strip()
-                title = re.sub(r'\s+', ' ', title).title()
-                if 5 < len(title) < 60: return title
-    return None
+        if '@' in line and '.' in line:
+            email = line
+        elif any(char.isdigit() for char in line) and len(line) > 8:
+            phone = line
+        elif 'linkedin.com' in line.lower():
+            linkedin = line
+        elif 'github.com' in line.lower():
+            github = line
+        elif len(line.split()) <= 4 and line and not any(char.isdigit() for char in line) and '@' not in line:
+            name = line
 
-def get_top_matches(resume_skills, it_only=True):
-    if df_jobs.empty: return [], None
-    if not resume_skills:
-        resume_skills = ['python'] # ✅ FALLBACK: Default skill to avoid empty match
+    skills = extract_skills_from_text(resume_text)
+    summary = f"Results-driven {target_job} with expertise in {', '.join(skills[:3])}. Passionate about building scalable solutions and delivering high-quality code."
 
-    try:
-        resume_text = " ".join(resume_skills)
-        job_skills_list = df_jobs['skills'].fillna('').astype(str).str.lower().tolist()
-        vectorizer = TfidfVectorizer(stop_words='english', max_features=500, ngram_range=(1, 2))
-        vectors = vectorizer.fit_transform([resume_text] + job_skills_list)
-        cosine_sim = cosine_similarity(vectors[0:1], vectors[1:]).flatten()
-        cosine_sim = np.nan_to_num(cosine_sim, nan=0.0)
-        df_jobs['match'] = (cosine_sim * 100).round(1)
-    except Exception as e:
-        print(f"Vectorizer Error: {e}")
-        df_jobs['match'] = 50.0 # ✅ FALLBACK: Default 50% match
+    experience = [{
+        'title': target_job,
+        'company': 'Tech Solutions Inc.',
+        'duration': 'Jan 2022 - Present',
+        'points': [
+            'Developed and maintained scalable web applications using modern frameworks',
+            'Collaborated with cross-functional teams to deliver features on time',
+            'Improved application performance by 40% through code optimization'
+        ]
+    }]
 
-    results = []
-    for idx, row in df_jobs.iterrows():
-        try:
-            category = str(row.get('category', 'IT'))
-            if it_only and category not in ['IT', 'IT-Business']: continue
+    education = [{
+        'degree': 'B.Tech in Computer Science',
+        'university': 'ABC University',
+        'year': '2018 - 2022',
+        'cgpa': '8.5'
+    }]
 
-            job_skills_str = str(row.get('skills', ''))
-            job_skill_set = set(job_skills_str.lower().split())
-            resume_skill_set = set([s.lower() for s in resume_skills])
-            missing = list(job_skill_set - resume_skill_set)[:6]
+    projects = [{
+        'name': 'E-Commerce Platform',
+        'tech': 'React, Node.js, MongoDB',
+        'link': '',
+        'points': [
+            'Built full-stack e-commerce application with payment integration',
+            'Implemented user authentication and product management system'
+        ]
+    }]
 
-            job_title_str = str(row.get('title', 'Unknown'))
-            apply_url = get_apply_url(job_title_str)
-            company_name = get_company_name(job_title_str)
-            location = str(row.get('location', 'Not Specified'))
+    return {
+        'template': template, 'name': name, 'email': email, 'phone': phone,
+        'linkedin': linkedin, 'github': github, 'location': location, 'summary': summary,
+        'skills': skills, 'experience': experience, 'education': education, 'projects': projects,
+        'certifications': [], 'languages': [{'name': 'English', 'level': 'Fluent'}, {'name': 'Telugu', 'level': 'Native'}],
+        'hobbies': 'Reading, Cricket, Coding'
+    }
 
-            results.append({
-                "title": job_title_str, "match": float(row.get('match', 0)),
-                "salary": float(row.get('salary', 0)), "risk": int(row.get('risk', 0)),
-                "missing": missing, "category": category, "location": location,
-                "apply_url": apply_url, "company_name": company_name, "id": int(idx),
-                "description": str(row.get('description', 'No description available'))
-            })
-        except Exception as e:
-            print(f"Row error {idx}: {e}")
-            continue
+def generate_cover_letter(resume_text, target_job, company_name, template):
+    lines = resume_text.split('\n')
+    name = "Your Name"
+    email = "email@example.com"
+    phone = "+91 XXXXX XXXXX"
 
-    top10 = sorted(results, key=lambda x: x['match'], reverse=True)[:10]
-    chart_data = create_charts(top10) if top10 else None
-    gc.collect()
-    return top10, chart_data
+    for line in lines[:10]:
+        if '@' in line and '.' in line:
+            email = line.strip()
+        elif any(char.isdigit() for char in line) and len(line) > 8:
+            phone = line.strip()
+        elif len(line.split()) <= 4 and line.strip() and not any(char.isdigit() for char in line):
+            name = line.strip()
 
-def create_charts(jobs, applying_job_title="Job Match", jd_match_percent=None):
-    if not jobs: return None
-    try:
-        top_job = jobs[0]
-        score = jd_match_percent if jd_match_percent is not None else top_job['match']
-        fig = go.Figure(go.Indicator(
-            mode = "gauge+number", value = score, domain = {'x': [0, 1], 'y': [0, 1]},
-            title = {'text': f"Top Match Job<br><span style='font-size:0.8em;color:#00ff88'>{applying_job_title if jd_match_percent else top_job['title']}</span>", 'font': {'size': 20, 'color': 'white'}},
-            number = {'font': {'size': 50, 'color': '#00ff88'}, 'suffix': '%'},
-            gauge = {'axis': {'range': [None, 100], 'tickcolor': 'white'}, 'bar': {'color': "#00ff88", 'thickness': 0.75},
-                'bgcolor': "rgba(0,0,0,0)", 'borderwidth': 2, 'bordercolor': "#334155",
-                'steps': [{'range': [0, 40], 'color': 'rgba(239, 68, 68, 0.3)'},
-                          {'range': [40, 70], 'color': 'rgba(251, 191, 36, 0.3)'},
-                          {'range': [70, 100], 'color': 'rgba(0, 255, 136, 0.3)'}],
-                'threshold': {'line': {'color': "white", 'width': 4}, 'thickness': 0.75, 'value': 80}}))
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-            font={'color': "white", 'family': "Poppins, Arial"}, height=320, margin=dict(l=30, r=30, t=80, b=30))
-        return {"gauge": json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder), "top_job": top_job}
-    except Exception as e:
-        print(f"Chart Error: {e}")
-        return None
+    body = f"""
+    <p><strong>{name}</strong><br>
+    {email} | {phone}</p>
 
-def compare_with_jd(resume_skills, jd_skills):
-    if not jd_skills: return None
-    resume_set = set([s.lower() for s in resume_skills])
-    jd_set = set([s.lower() for s in jd_skills])
-    matched = sorted(list(resume_set & jd_set))
-    missing = sorted(list(jd_set - resume_set))
-    extra = sorted(list(resume_set - jd_set))
-    match_percent = round((len(matched) / len(jd_set)) * 100, 1) if len(jd_set) > 0 else 0
-    return {"match_percent": match_percent, "matched_skills": matched, "missing_skills": missing[:6],
-        "extra_skills": extra[:4], "total_jd_skills": len(jd_set), "total_matched": len(matched)}
+    <p>{datetime.now().strftime('%B %d, %Y')}</p>
 
-def encode_data(data):
-    json_str = json.dumps(data)
-    return base64.urlsafe_b64encode(json_str.encode()).decode()
+    <p>Hiring Manager<br>
+    {company_name}</p>
 
-def decode_data(encoded_str):
-    try:
-        json_str = base64.urlsafe_b64decode(encoded_str.encode()).decode()
-        return json.loads(json_str)
-    except Exception as e:
-        print(f"Decode Error: {e}")
-        return None
+    <p>Dear Hiring Manager,</p>
+
+    <p>I am writing to express my strong interest in the <strong>{target_job}</strong> position at {company_name}. With my background in software development and proven track record of delivering high-quality solutions, I am confident that I would be a valuable addition to your team.</p>
+
+    <p>Throughout my career, I have developed expertise in modern technologies and demonstrated the ability to solve complex problems efficiently. My experience aligns well with the requirements of this role, and I am excited about the opportunity to contribute to {company_name}'s continued success.</p>
+
+    <p>Key highlights of my qualifications include:</p>
+    <ul>
+        <li>Strong technical foundation with hands-on experience in relevant technologies</li>
+        <li>Proven ability to collaborate effectively with cross-functional teams</li>
+        <li>Commitment to writing clean, maintainable code and following best practices</li>
+        <li>Passion for continuous learning and staying updated with industry trends</li>
+    </ul>
+
+    <p>I am particularly drawn to {company_name} because of its reputation for innovation and excellence. I would welcome the opportunity to discuss how my skills and enthusiasm can contribute to your team's goals.</p>
+
+    <p>Thank you for considering my application. I look forward to the possibility of discussing this opportunity with you.</p>
+
+    <p>Sincerely,<br>
+    {name}</p>
+    """
+
+    return {'name': name, 'email': email, 'phone': phone, 'company_name': company_name, 'body': body, 'template': template}
+
+def generate_resume_pdf(content):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch, leftMargin=0.5*inch, rightMargin=0.5*inch)
+    styles = getSampleStyleSheet()
+    story = []
+
+    title_style = ParagraphStyle('CustomTitle', parent=styles['Heading1'], fontSize=24, textColor=colors.HexColor('#1e293b'), spaceAfter=6)
+    heading_style = ParagraphStyle('CustomHeading', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#3b82f6'), spaceAfter=6, spaceBefore=12)
+
+    story.append(Paragraph(content['name'], title_style))
+    contact_info = f"{content['email']} | {content['phone']}"
+    if content['linkedin']:
+        contact_info += f" | {content['linkedin']}"
+    story.append(Paragraph(contact_info, styles['Normal']))
+    story.append(Spacer(1, 0.2*inch))
+
+    story.append(Paragraph('PROFESSIONAL SUMMARY', heading_style))
+    story.append(Paragraph(content['summary'], styles['Normal']))
+    story.append(Spacer(1, 0.15*inch))
+
+    story.append(Paragraph('TECHNICAL SKILLS', heading_style))
+    story.append(Paragraph(' • '.join(content['skills']), styles['Normal']))
+    story.append(Spacer(1, 0.15*inch))
+
+    story.append(Paragraph('PROFESSIONAL EXPERIENCE', heading_style))
+    for exp in content['experience']:
+        story.append(Paragraph(f"<b>{exp['title']}</b> - {exp['company']}", styles['Normal']))
+        story.append(Paragraph(f"<i>{exp['duration']}</i>", styles['Normal']))
+        for point in exp['points']:
+            story.append(Paragraph(f"• {point}", styles['Normal']))
+        story.append(Spacer(1, 0.1*inch))
+
+    story.append(Paragraph('EDUCATION', heading_style))
+    for edu in content['education']:
+        story.append(Paragraph(f"<b>{edu['degree']}</b>", styles['Normal']))
+        story.append(Paragraph(f"{edu['university']} | {edu['year']} | CGPA: {edu['cgpa']}", styles['Normal']))
+        story.append(Spacer(1, 0.1*inch))
+
+    if content['projects']:
+        story.append(Paragraph('KEY PROJECTS', heading_style))
+        for proj in content['projects']:
+            story.append(Paragraph(f"<b>{proj['name']}</b>", styles['Normal']))
+            story.append(Paragraph(f"<i>{proj['tech']}</i>", styles['Normal']))
+            for point in proj['points']:
+                story.append(Paragraph(f"• {point}", styles['Normal']))
+            story.append(Spacer(1, 0.1*inch))
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+def get_skill_roadmap(skill_name):
+    if skill_name in SKILL_ROADMAPS:
+        return SKILL_ROADMAPS[skill_name]
+    return {
+        'title': f'{skill_name} Learning Roadmap',
+        'stages': [
+            {'name': 'Beginner', 'topics': ['Introduction', 'Basic Concepts', 'Setup', 'First Project']},
+            {'name': 'Intermediate', 'topics': ['Core Features', 'Best Practices', 'Common Patterns']},
+            {'name': 'Advanced', 'topics': ['Advanced Topics', 'Optimization', 'Real-world Projects']},
+            {'name': 'Expert', 'topics': ['Architecture', 'Scaling', 'Production', 'Contributing']}
+        ],
+        'youtube': f'https://www.youtube.com/results?search_query={skill_name}+tutorial+roadmap'
+    }
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    flash('File too large! Please upload PDF under 16MB', 'danger')
+    return redirect(url_for('skill_analysis')), 413
+
+@app.route('/')
+def index():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+    return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated: return redirect(url_for('index'))
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        email = request.form['email']
-        password = request.form['password']
-        conn = sqlite3.connect('careerscope_users.db')
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM users WHERE email =?", (email,))
-        user = cur.fetchone()
-        conn.close()
-        if user and bcrypt.check_password_hash(user[3], password):
-            login_user(User(user[0], user[1], user[2]))
-            next_page = request.args.get('next')
-            return redirect(next_page or url_for('index'))
-        flash('Invalid email or password', 'error')
+        email_or_username = request.form.get('username')
+        password = request.form.get('password')
+        user = User.query.filter((User.username == email_or_username) | (User.email == email_or_username)).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid username or password', 'danger')
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if current_user.is_authenticated: return redirect(url_for('index'))
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
     if request.method == 'POST':
-        name = request.form['name']
-        email = request.form['email']
-        password = bcrypt.generate_password_hash(request.form['password']).decode('utf-8')
-        try:
-            conn = sqlite3.connect('careerscope_users.db')
-            conn.execute("INSERT INTO users (name, email, password) VALUES (?,?,?)", (name, email, password))
-            conn.commit()
-            conn.close()
-            flash('Registered successfully! Please login', 'success')
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists', 'danger')
+        elif User.query.filter_by(email=email).first():
+            flash('Email already registered', 'danger')
+        else:
+            user = User(username=username, email=email)
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            flash('Registration successful! Please login.', 'success')
             return redirect(url_for('login'))
-        except sqlite3.IntegrityError:
-            flash('Email already registered', 'error')
     return render_template('register.html')
-
-@app.route('/forgot-password', methods=['GET', 'POST'])
-def forgot_password():
-    if request.method == 'POST':
-        email = request.form['email']
-        flash(f'Password reset link sent to {email} if account exists', 'info')
-        return redirect(url_for('login'))
-    return render_template('forgot_password.html')
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    session.clear()
-    flash('Logged out successfully', 'info')
     return redirect(url_for('login'))
 
-@app.route('/', methods=['GET', 'POST'])
+@app.route('/dashboard')
 @login_required
-def index():
-    if request.method == 'POST':
-        print("\n🔵 === NEW ANALYSIS START ===")
-        resume_file = request.files.get('resume')
-        jd_file = request.files.get('jd_pdf')
-        it_only = request.form.get('it_only') == 'on'
-        jd_text_manual = request.form.get('job_description', '').strip()
+def dashboard():
+    return render_template('dashboard.html')
 
-        if len(jd_text_manual) > 10000:
-            return render_template('index.html', error="Job Description too long! Max 10,000 characters.")
-
-        if not resume_file or not resume_file.filename:
-            return render_template('index.html', error="Please upload your resume PDF")
-
-        try:
-            print("🔵 Extracting resume...")
-            resume_text = extract_text_from_pdf(resume_file)
-
-            if not resume_text:
-                print("⚠️ Resume text empty - using fallback")
-                resume_text = "python java sql react" # ✅ FALLBACK TEXT
-                flash('Could not read PDF properly. Using sample skills for demo.', 'warning')
-
-            print(f"✅ Resume text: {len(resume_text)} chars")
-            skills = extract_skills_from_text(resume_text)
-
-            if not skills:
-                print("⚠️ No skills found - using default skills")
-                skills = ['python', 'java', 'sql'] # ✅ FALLBACK SKILLS
-                flash('No technical skills detected. Using default skills: Python, Java, SQL', 'warning')
-
-            ats_score = calculate_ats_score(resume_text, skills)
-            print(f"✅ ATS Score: {ats_score}, Skills: {skills}")
-
-            jd_skills = []
-            jd_job_title = None
-
-            if jd_file and jd_file.filename:
-                jd_text_final = extract_text_from_pdf(jd_file)
-                if jd_text_final:
-                    jd_skills = extract_skills_from_text(jd_text_final)
-                    jd_job_title = extract_job_title_from_jd(jd_text_final)
-            elif jd_text_manual:
-                jd_text_final = jd_text_manual
-                jd_skills = extract_skills_from_text(jd_text_manual)
-                jd_job_title = extract_job_title_from_jd(jd_text_manual)
-
-            jd_comparison = compare_with_jd(skills, jd_skills)
-
-            data_to_pass = {
-                'skills': skills[:5],
-                'it': 1 if it_only else 0,
-                'jd_match': jd_comparison['match_percent'] if jd_comparison else 0,
-                'jd_matched': jd_comparison['matched_skills'][:3] if jd_comparison else [],
-                'jd_missing': jd_comparison['missing_skills'][:2] if jd_comparison else [],
-                'title': (jd_job_title or "Software Engineer")[:20],
-                'ats': ats_score,
-                'resume_name': resume_file.filename if resume_file else 'Resume'
-            }
-            encoded = encode_data(data_to_pass)
-            print(f"✅ SUCCESS: Redirecting to skill_analysis")
-            return redirect(url_for('skill_analysis', data=encoded))
-
-        except Exception as e:
-            print(f"❌ CRITICAL ERROR: {e}")
-            traceback.print_exc()
-            return render_template('index.html', error=f"Error: {str(e)}")
-
-    return render_template('index.html', error=None)
-
-@app.route('/skill-analysis')
+@app.route('/skill_analysis', methods=['GET', 'POST'])
 @login_required
 def skill_analysis():
-    encoded_data = request.args.get('data')
-
-    if not encoded_data:
-        flash('No data found. Please upload resume again.', 'error')
-        return redirect(url_for('index'))
-
-    data = decode_data(encoded_data)
-    if not data:
-        flash('Invalid data. Please upload resume again.', 'error')
-        return redirect(url_for('index'))
-
-    skills_list = data.get('skills', ['python']) # ✅ FALLBACK
-    it_checked = data.get('it', 0) == 1
-    resume_name = data.get('resume_name', 'Resume.pdf')
-
-    results, charts = get_top_matches(skills_list, it_checked)
-
-    jd_comparison = None
-    if data.get('jd_match', 0) > 0:
-        jd_comparison = {
-            'match_percent': data['jd_match'],
-            'matched_skills': data.get('jd_matched', []),
-            'missing_skills': data.get('jd_missing', []),
-            'extra_skills': [],
-            'total_jd_skills': len(data.get('jd_matched', [])) + len(data.get('jd_missing', [])),
-            'total_matched': len(data.get('jd_matched', []))
+    if request.method == 'POST':
+        resume_file = request.files.get('resume_file')
+        jd_file = request.files.get('jd_file')
+        jd_text = request.form.get('job_description', '')
+        if not resume_file:
+            flash('Please upload a resume', 'danger')
+            return redirect(url_for('skill_analysis'))
+        resume_text = extract_pdf_text(resume_file)
+        if not resume_text:
+            flash('Could not extract text from resume', 'danger')
+            return redirect(url_for('skill_analysis'))
+        if jd_file:
+            jd_text = extract_pdf_text(jd_file)
+        if not jd_text:
+            flash('Please provide a job description', 'danger')
+            return redirect(url_for('skill_analysis'))
+        job_title, target_skills = analyze_job_description(jd_text)
+        skills_found = extract_skills_from_text(resume_text)
+        matched_skills = list(set(skills_found) & set(target_skills))
+        missing_skills = list(set(target_skills) - set(skills_found))
+        bonus_skills = list(set(skills_found) - set(target_skills))
+        match_percent = int((len(matched_skills) / len(target_skills) * 100)) if target_skills else 0
+        ats_score = calculate_ats_score(resume_text, target_skills)
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=match_percent,
+            title={'text': "Match Score"},
+            gauge={'axis': {'range': [None, 100]},
+                   'bar': {'color': "#22d3ee"},
+                   'steps': [{'range': [0, 50], 'color': "#ef4444"},
+                            {'range': [50, 80], 'color': "#f59e0b"},
+                            {'range': [80, 100], 'color': "#10b981"}]}
+        ))
+        fig.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+        charts = {'gauge': json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)}
+        session['resume_text'] = resume_text
+        session['target_job'] = job_title
+        session['target_skills'] = target_skills
+        session['analysis_results'] = {
+            'job_title': job_title,
+            'skills_found': skills_found,
+            'matched_skills': matched_skills,
+            'missing_skills': missing_skills,
+            'bonus_skills': bonus_skills,
+            'match_percent': match_percent,
+            'ats_resume_score': ats_score,
+            'charts': charts,
+            'top_match_job': {'title': job_title, 'match_score': match_percent, 'salary': '$80k - $120k'}
         }
+        return render_template('skill_analysis.html',
+                             show_results=True,
+                             job_title=job_title,
+                             skills_found=skills_found,
+                             matched_skills=matched_skills,
+                             missing_skills=missing_skills,
+                             bonus_skills=bonus_skills,
+                             match_percent=match_percent,
+                             ats_resume_score=ats_score,
+                             charts=charts,
+                             show_resume_builder=ats_score < 80,
+                             top_match_job={'title': job_title, 'match_score': match_percent, 'salary': '$80k - $120k'})
+    if 'analysis_results' in session:
+        results = session['analysis_results']
+        return render_template('skill_analysis.html',
+                             show_results=True,
+                             job_title=results['job_title'],
+                             skills_found=results['skills_found'],
+                             matched_skills=results['matched_skills'],
+                             missing_skills=results['missing_skills'],
+                             bonus_skills=results['bonus_skills'],
+                             match_percent=results['match_percent'],
+                             ats_resume_score=results['ats_resume_score'],
+                             charts=results['charts'],
+                             show_resume_builder=results['ats_resume_score'] < 80,
+                             top_match_job=results['top_match_job'])
+    return render_template('skill_analysis.html', show_results=False)
 
-    return render_template('skill_analysis.html',
-                         results=results,
-                         skills_found=skills_list,
-                         it_checked=it_checked,
-                         charts=charts,
-                         jd_comparison=jd_comparison,
-                         applying_job_title=data.get('title', 'Software Engineer'),
-                         title_source='job_description' if data.get('jd_match', 0) > 0 else 'resume_match',
-                         ats_score=data.get('ats', 0),
-                         resume_name=resume_name,
-                         encoded_data=encoded_data)
+@app.route('/clear_analysis')
+@login_required
+def clear_analysis():
+    session.pop('analysis_results', None)
+    session.pop('resume_text', None)
+    session.pop('target_job', None)
+    session.pop('target_skills', None)
+    flash('Analysis cleared! Upload new files.', 'info')
+    return redirect(url_for('skill_analysis'))
 
-@app.route('/job-matches')
+@app.route('/resume_builder', methods=['GET', 'POST'])
+@login_required
+def resume_builder():
+    resume_text = session.get('resume_text', '')
+    target_job = session.get('target_job', 'Software Developer')
+    target_skills = session.get('target_skills', [])
+    if not resume_text:
+        flash('Please analyze your resume first', 'warning')
+        return redirect(url_for('skill_analysis'))
+    if request.method == 'POST':
+        content = {
+            'template': request.form.get('template', 'modern'),
+            'name': request.form.get('name'),
+            'email': request.form.get('email'),
+            'phone': request.form.get('phone'),
+            'linkedin': request.form.get('linkedin'),
+            'github': request.form.get('github', ''),
+            'portfolio': request.form.get('portfolio', ''),
+            'location': request.form.get('location', ''),
+            'summary': request.form.get('summary'),
+            'skills': request.form.getlist('skills'),
+            'experience': json.loads(request.form.get('experience_json', '[]')),
+            'education': json.loads(request.form.get('education_json', '[]')),
+            'projects': json.loads(request.form.get('projects_json', '[]')),
+            'certifications': json.loads(request.form.get('certifications_json', '[]')),
+            'languages': json.loads(request.form.get('languages_json', '[]')),
+            'hobbies': request.form.get('hobbies', '')
+        }
+        pdf_buffer = generate_resume_pdf(content)
+        return send_file(pdf_buffer, as_attachment=True, download_name=f'Resume_{target_job.replace(" ", "_")}.pdf', mimetype='application/pdf')
+    mode = request.args.get('mode', 'preview')
+    selected_template = request.args.get('template', 'modern')
+    resume_content = generate_resume_content(resume_text, target_job, target_skills, selected_template)
+    return render_template('resume_builder.html',
+                         content=resume_content,
+                         templates=RESUME_TEMPLATES,
+                         target_job=target_job,
+                         mode=mode,
+                         selected_template=selected_template)
+
+@app.route('/cover_letter', methods=['GET', 'POST'])
+@login_required
+def cover_letter():
+    resume_text = session.get('resume_text', '')
+    target_job = session.get('target_job', 'Software Developer')
+    if not resume_text:
+        flash('Please analyze your resume first', 'warning')
+        return redirect(url_for('skill_analysis'))
+    mode = request.args.get('mode', 'preview')
+    selected_template = request.args.get('template', 'modern')
+    company_name = request.form.get('company_name', 'Your Company') if request.method == 'POST' else 'Your Company'
+    cover_content = generate_cover_letter(resume_text, target_job, company_name, selected_template)
+    if request.method == 'POST':
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.75*inch, bottomMargin=0.75*inch, leftMargin=0.75*inch, rightMargin=0.75*inch)
+        styles = getSampleStyleSheet()
+        story = []
+        body_text = request.form.get('body', cover_content['body'])
+        import re
+        clean_text = re.sub('<[^<]+?>', '', body_text)
+        paragraphs = clean_text.split('\n\n')
+        for para in paragraphs:
+            if para.strip():
+                story.append(Paragraph(para.strip(), styles['Normal']))
+                story.append(Spacer(1, 0.2*inch))
+        doc.build(story)
+        buffer.seek(0)
+        return send_file(buffer, as_attachment=True, download_name=f'Cover_Letter_{target_job.replace(" ", "_")}.pdf', mimetype='application/pdf')
+    return render_template('cover_letter.html',
+                         content=cover_content,
+                         templates=COVER_LETTER_TEMPLATES,
+                         target_job=target_job,
+                         mode=mode,
+                         selected_template=selected_template)
+
+@app.route('/skill_roadmap/<skill_name>')
+@login_required
+def skill_roadmap(skill_name):
+    roadmap = get_skill_roadmap(skill_name)
+    return render_template('skill_roadmap.html', skill=skill_name, roadmap=roadmap)
+
+@app.route('/job_matches')
 @login_required
 def job_matches():
-    encoded_data = request.args.get('data')
-    if not encoded_data:
-        flash('No data found. Please upload resume again.', 'error')
-        return redirect(url_for('index'))
-    data = decode_data(encoded_data)
-    if not data:
-        flash('Invalid data. Please upload resume again.', 'error')
-        return redirect(url_for('index'))
+    analysis_data = session.get('analysis_results', {})
 
-    skills_list = data.get('skills', ['python'])
-    it_checked = data.get('it', 0) == 1
-    results, _ = get_top_matches(skills_list, it_checked)
+    if not analysis_data:
+        target_job = 'Software Developer'
+        target_skills = ['Python', 'JavaScript', 'React', 'SQL', 'Node.js']
+        skills_found = ['Python', 'HTML', 'CSS']
+        missing_skills = ['JavaScript', 'React', 'SQL', 'Node.js']
+    else:
+        target_job = analysis_data.get('job_title', 'Software Developer')
+        target_skills = session.get('target_skills', ['Python', 'JavaScript'])
+        skills_found = analysis_data.get('skills_found', ['Python'])
+        missing_skills = analysis_data.get('missing_skills', [])
 
-    min_match = request.args.get('min_match', type=float, default=0)
-    min_salary = request.args.get('min_salary', type=float, default=0)
-    max_risk = request.args.get('max_risk', type=int, default=100)
-    location = request.args.get('location', default='')
-    sort_by = request.args.get('sort', default='match')
-    search = request.args.get('search', default='').lower()
+    location = "India"
+    experience_level = "2"
+    job_list = []
 
-    filtered = []
-    for job in results:
-        if job['match'] >= min_match and job['salary'] >= min_salary and job['risk'] <= max_risk:
-            if location and job.get('location', '')!= location: continue
-            if search == '' or search in job['title'].lower(): filtered.append(job)
+    # High match jobs - based on skills you have
+    for idx, skill in enumerate(skills_found[:3], 1):
+        keywords = f"{skill.replace(' ', '%20')}%20Developer"
+        linkedin_url = f"https://www.linkedin.com/jobs/search/?keywords={keywords}&location={location}&f_E={experience_level}&f_TP=1&sortBy=R"
+        skill_missing_for_job = list(set(target_skills) - set([skill, 'Git', 'Problem Solving']))
+        job_list.append({
+            'id': idx,
+            'title': f'{skill} Developer',
+            'company': 'Top MNCs & Startups',
+            'location': f'{location} / Remote',
+            'match_score': max(95 - (idx * 5), 70),
+            'salary': '₹5L - ₹18L PA',
+            'skills_required': [skill, 'Git', 'Problem Solving'],
+            'missing_skills': skill_missing_for_job[:3],
+            'posted': 'Past 24 hours',
+            'linkedin_url': linkedin_url,
+            'description': f'Hiring {skill} developers. Click to see all active openings on LinkedIn.'
+        })
 
-    if sort_by == 'salary': filtered = sorted(filtered, key=lambda x: x['salary'], reverse=True)
-    elif sort_by == 'risk': filtered = sorted(filtered, key=lambda x: x['risk'])
-    else: filtered = sorted(filtered, key=lambda x: x['match'], reverse=True)
+    # Low match jobs - based on skills you DON'T have
+    for idx, skill in enumerate(missing_skills[:3], 4):
+        keywords = f"{skill.replace(' ', '%20')}%20Developer"
+        linkedin_url = f"https://www.linkedin.com/jobs/search/?keywords={keywords}&location={location}&f_E={experience_level}&f_TP=1&sortBy=R"
+        job_list.append({
+            'id': idx,
+            'title': f'{skill} Developer',
+            'company': 'Learning Opportunity',
+            'location': f'{location} / Remote',
+            'match_score': max(60 - (idx * 5), 40),
+            'salary': '₹4L - ₹15L PA',
+            'skills_required': [skill] + skills_found[:2],
+            'missing_skills': [skill],
+            'posted': 'Past 24 hours',
+            'linkedin_url': linkedin_url,
+            'description': f'Learn {skill} to qualify. Click skill to see roadmap.'
+        })
 
-    stats = {'total': len(filtered), 'avg_match': round(sum(j['match'] for j in filtered) / len(filtered), 1) if filtered else 0,
-        'avg_salary': round(sum(j['salary'] for j in filtered) / len(filtered), 1) if filtered else 0,
-        'high_match': len([j for j in filtered if j['match'] >= 80])}
+    # General job
+    general_keywords = target_job.replace(' ', '%20')
+    general_url = f"https://www.linkedin.com/jobs/search/?keywords={general_keywords}&location={location}&f_TP=1&sortBy=R"
+    job_list.append({
+        'id': 99,
+        'title': f'{target_job} - All Openings',
+        'company': 'Multiple Companies',
+        'location': f'{location} / Remote',
+        'match_score': analysis_data.get('match_percent', 75),
+        'salary': '₹6L - ₹25L PA',
+        'skills_required': target_skills[:4],
+        'missing_skills': missing_skills[:3],
+        'posted': 'Recent',
+        'linkedin_url': general_url,
+        'description': f'All {target_job} positions matching your profile.'
+    })
 
-    return render_template('job_matches.html', results=filtered, stats=stats,
-                         applying_job_title=data.get('title', 'Software Engineer'),
-                         filters={'min_match': float(min_match), 'min_salary': float(min_salary),
-                                  'max_risk': int(max_risk), 'sort': str(sort_by),
-                                  'search': str(search), 'location': str(location)},
-                         encoded_data=encoded_data)
+    return render_template('job_matches.html', jobs=job_list, target_job=target_job, has_analysis=bool(analysis_data))
 
-@app.route('/saved-jobs')
+# ==================== MAIN - ADDED THIS BLOCK ====================
+@app.route('/saved_jobs')
 @login_required
 def saved_jobs():
-    encoded_data = request.args.get('data')
-    if not encoded_data: return redirect(url_for('index'))
-    data = decode_data(encoded_data)
-    if not data: return redirect(url_for('index'))
+    return render_template('saved_jobs.html', jobs=[])
 
-    skills_list = data.get('skills', ['python'])
-    it_checked = data.get('it', 0) == 1
-    results, _ = get_top_matches(skills_list, it_checked)
-    safe_results = []
-    for job in results:
-        safe_results.append({
-            'id': int(job.get('id', 0)), 'title': str(job.get('title', 'Unknown')),
-            'category': str(job.get('category', 'IT')), 'location': str(job.get('location', 'Not Specified')),
-            'salary': float(job.get('salary', 0)), 'risk': int(job.get('risk', 0)),
-            'match': float(job.get('match', 0)), 'apply_url': str(job.get('apply_url', '#')),
-            'company_name': job.get('company_name'), 'missing': job.get('missing', []),
-            'description': str(job.get('description', 'No description available'))
-        })
-    return render_template('saved_jobs.html', jobs=safe_results, encoded_data=encoded_data)
-
-@app.route('/compare')
-@login_required
-def compare():
-    job_ids = request.args.getlist('job_id', type=int)
-    encoded_data = request.args.get('data')
-    if not encoded_data: return redirect(url_for('index'))
-    data = decode_data(encoded_data)
-    if not data: return redirect(url_for('index'))
-
-    skills_list = data.get('skills', ['python'])
-    it_checked = data.get('it', 0) == 1
-    results, _ = get_top_matches(skills_list, it_checked)
-    compare_jobs = [j for j in results if j.get('id') in job_ids][:2]
-    return render_template('compare.html', jobs=compare_jobs, encoded_data=encoded_data)
-
-@app.route('/interview-prep/<job_title>')
-@login_required
-def interview_prep(job_title):
-    encoded_data = request.args.get('data')
-    company = get_company_name(job_title)
-    company_key = company.lower() if company else 'default'
-    questions = INTERVIEW_QUESTIONS.get(company_key, INTERVIEW_QUESTIONS['default'])
-    return render_template('interview_prep.html', job_title=job_title, company=company or 'General', questions=questions, encoded_data=encoded_data)
-
-@app.route('/salary-trend/<job_title>/<float:salary>')
-@login_required
-def salary_trend(job_title, salary):
-    encoded_data = request.args.get('data')
-    chart_json = create_salary_trend_chart(job_title, salary)
-    return render_template('salary_trend.html', job_title=job_title, current_salary=salary, chart_json=chart_json, encoded_data=encoded_data)
-
-@app.route('/email-alerts', methods=['GET', 'POST'])
-@login_required
-def email_alerts():
-    encoded_data = request.args.get('data')
-    if request.method == 'POST':
-        email = request.form.get('email')
-        min_match = request.form.get('min_match', 70)
-        return jsonify({'success': True, 'message': f'Alerts enabled for {email}'})
-    alerts = {'enabled': False}
-    return render_template('email_alerts.html', alerts=alerts, encoded_data=encoded_data)
-
-@app.route('/export-pdf')
+@app.route('/export_pdf', methods=['POST'])
 @login_required
 def export_pdf():
-    encoded_data = request.args.get('data')
-    if not encoded_data: return redirect(url_for('index'))
-    data = decode_data(encoded_data)
-    if not data: return redirect(url_for('index'))
-
-    skills_list = data.get('skills', ['python'])
-    it_checked = data.get('it', 0) == 1
-    results, _ = get_top_matches(skills_list, it_checked)
-    html = render_template('export_pdf.html', results=results[:5], applying_job_title=data.get('title', 'Software Engineer'),
-                          date=datetime.now().strftime('%Y-%m-%d'))
-    response = make_response(html)
-    response.headers['Content-Type'] = 'application/pdf'
-    response.headers['Content-Disposition'] = 'inline; filename=careerscope_report.pdf'
-    return response
-
-@app.route('/new-analysis')
-@login_required
-def new_analysis():
-    return redirect(url_for('index'))
-
-@app.template_filter('urlencode')
-def urlencode_filter(s):
-    if isinstance(s, str): return urllib.parse.quote_plus(s)
-    return s
-
+    resume_text = session.get('resume_text', '')
+    target_job = session.get('target_job', 'Software Developer')
+    target_skills = session.get('target_skills', [])
+    content = generate_resume_content(resume_text, target_job, target_skills, 'modern')
+    pdf_buffer = generate_resume_pdf(content)
+    return send_file(pdf_buffer, as_attachment=True, download_name=f'Resume_{target_job.replace(" ", "_")}.pdf', mimetype='application/pdf')
 if __name__ == '__main__':
-    print("🚀 CareerScope AI Pro - FULLY FIXED & READY")
-    app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)
+    with app.app_context():
+        db.create_all()
+    app.run(debug=True, host='127.0.0.1', port=5000)

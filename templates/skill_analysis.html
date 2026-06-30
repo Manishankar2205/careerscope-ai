@@ -1,205 +1,234 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareerScope - Skill Analysis</title>
-    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: #0f172a;
-            color: white;
-            display: flex;
-            min-height: 100vh;
-        }
+{% extends "base.html" %}
+{% block title %}Skill Analysis{% endblock %}
+{% block content %}
+<style>
+.upload-box {
+        background: #1e293b;
+        border: 2px dashed #334155;
+        border-radius: 15px;
+        padding: 40px;
+        text-align: center;
+        transition: 0.3s;
+    }
+.upload-box:hover {
+        border-color: #22d3ee;
+        background: #1e293b80;
+    }
+.analyze-btn {
+        background: linear-gradient(90deg, #22d3ee, #3b82f6);
+        color: #0f172a;
+        font-weight: 700;
+        font-size: 18px;
+        padding: 16px;
+        border: none;
+        border-radius: 12px;
+        width: 100%;
+        cursor: pointer;
+        transition: 0.3s;
+    }
+.analyze-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(34, 211, 238, 0.3);
+    }
+.analyze-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+</style>
 
-        /* SIDEBAR */
-     .sidebar {
-            width: 260px;
-            background: #1e293b;
-            padding: 25px 15px;
-            display: flex;
-            flex-direction: column;
-            position: fixed;
-            height: 100vh;
-            border-right: 1px solid #334155;
-        }
-     .logo {
-            font-size: 1.5em;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 40px;
-            padding: 0 10px;
-        }
-     .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 15px;
-            margin: 4px 0;
-            border-radius: 10px;
-            color: #94a3b8;
-            text-decoration: none;
-            font-weight: 500;
-            transition: 0.2s;
-        }
-     .nav-item:hover, .nav-item.active {
-            background: #334155;
-            color: #00ff88;
-        }
-     .nav-item.active {
-            border-left: 3px solid #00ff88;
-        }
-     .nav-divider {
-            height: 1px;
-            background: #334155;
-            margin: 15px 0;
-        }
+<div class="mb-6">
+    <h2 class="text-4xl font-bold text-white mb-2">⚡ CareerScope AI Pro</h2>
+    <p class="text-gray-400 text-lg">Upload Resume & Get Instant ATS Score + Skills Analysis</p>
+</div>
 
-        /* MAIN CONTENT */
-     .main-content {
-            margin-left: 260px;
-            flex: 1;
-            padding: 30px;
-            background: #0f172a;
-        }
-     .page-header h1 {
-            font-size: 2.2em;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-     .glass-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 15px;
-            padding: 30px;
-            margin: 20px 0;
-        }
-     .skill-badge {
-            background: rgba(0, 255, 136, 0.15);
-            border: 1px solid #00ff88;
-            color: #00ff88;
-            padding: 8px 18px;
-            border-radius: 20px;
-            display: inline-block;
-            margin: 5px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-     .ats-score-box {
-            text-align: center;
-            padding: 30px;
-        }
-     .ats-score {
-            font-size: 4em;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-    </style>
-</head>
-<body>
-    <!-- SIDEBAR - FIXED WITH data=encoded_data -->
-    <div class="sidebar">
-        <div class="logo">CareerScope</div>
-        
-        <a href="{{ url_for('skill_analysis', data=encoded_data) }}" class="nav-item active">
-            📊 <span>Skill Analysis</span>
-        </a>
-        <a href="{{ url_for('job_matches', data=encoded_data) }}" class="nav-item">
-            💼 <span>Job Matches</span>
-        </a>
-        <a href="{{ url_for('saved_jobs', data=encoded_data) }}" class="nav-item">
-            💾 <span>Saved Jobs</span>
-        </a>
-        <a href="{{ url_for('export_pdf', data=encoded_data) }}" target="_blank" class="nav-item">
-            📄 <span>Export PDF</span>
-        </a>
-        
-        <div class="nav-divider"></div>
-        
-        <a href="{{ url_for('logout') }}" class="nav-item">
-            🚪 <span>Logout</span>
-        </a>
+{% if not show_results %}
+<div class="bg-[#1e293b] p-8 rounded-2xl border border-gray-700 mb-6">
+    <form method="POST" enctype="multipart/form-data" id="analyzeForm">
+        <div class="upload-box mb-6">
+            <div class="text-6xl mb-4">📄</div>
+            <h3 class="text-xl font-bold text-white mb-2">Upload Resume PDF</h3>
+            <p class="text-gray-400 mb-4">Required | Max 5MB</p>
+            <input type="file" name="resume_file" accept=".pdf" required id="resumeInput" class="hidden">
+            <label for="resumeInput" class="inline-block px-6 py-3 bg-[#22d3ee] text-black font-semibold rounded-lg cursor-pointer hover:bg-[#0891b2] transition">
+                Choose File
+            </label>
+            <p id="resumeFileName" class="text-[#22d3ee] mt-3 font-semibold"></p>
+        </div>
+
+        <div class="upload-box mb-6">
+            <div class="text-6xl mb-4">📋</div>
+            <h3 class="text-xl font-bold text-white mb-2">Upload Job Description PDF</h3>
+            <p class="text-gray-400 mb-4">Optional | Max 5MB</p>
+            <input type="file" name="jd_file" accept=".pdf" id="jdInput" class="hidden">
+            <label for="jdInput" class="inline-block px-6 py-3 bg-[#22d3ee] text-black font-semibold rounded-lg cursor-pointer hover:bg-[#0891b2] transition">
+                Choose File
+            </label>
+            <p id="jdFileName" class="text-[#22d3ee] mt-3 font-semibold"></p>
+        </div>
+
+        <div class="text-center text-gray-500 mb-4 font-semibold">OR</div>
+
+        <div class="mb-6">
+            <label class="block text-white font-bold text-lg mb-3">Paste Job Description</label>
+            <textarea name="job_description" class="w-full p-4 bg-[#0f172a] border border-gray-600 rounded-xl text-white placeholder-gray-500" placeholder="Paste complete job description here... Job title will be auto-detected" rows="5"></textarea>
+        </div>
+
+        <button type="submit" id="analyzeBtn" class="analyze-btn">ANALYZE NOW</button>
+    </form>
+</div>
+
+<script>
+document.getElementById('resumeInput').addEventListener('change', function(e) {
+    if (e.target.files[0]) {
+        document.getElementById('resumeFileName').textContent = '✓ ' + e.target.files[0].name;
+    }
+});
+document.getElementById('jdInput').addEventListener('change', function(e) {
+    if (e.target.files[0]) {
+        document.getElementById('jdFileName').textContent = '✓ ' + e.target.files[0].name;
+    }
+});
+document.getElementById('analyzeForm').addEventListener('submit', function() {
+    document.getElementById('analyzeBtn').innerHTML = 'ANALYZING... PLEASE WAIT';
+    document.getElementById('analyzeBtn').disabled = true;
+});
+</script>
+{% endif %}
+
+{% if show_results %}
+<a href="/clear_analysis" class="inline-block mb-6 px-6 py-3 bg-red-600 text-white rounded-xl hover:bg-red-500 font-semibold">
+    🗑️ New Analysis
+</a>
+<div class="mb-8">
+    <h3 class="text-2xl font-bold text-[#22d3ee] mb-2 flex items-center gap-2">
+        <span>✨</span> Your Skill Analysis
+    </h3>
+    <p class="text-gray-400 mb-6">Detailed breakdown of your career profile</p>
+
+    <div class="bg-[#1e293b] p-6 rounded-xl border border-[#22d3ee]/30 mb-6">
+        <p class="text-gray-400 text-sm mb-2">Based on Job Description Job Name:</p>
+        <div class="flex justify-between items-center">
+            <h4 class="text-3xl font-bold text-white">{{ job_title }}</h4>
+            <button class="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg hover:bg-gray-600 text-sm">
+                ✏️ Edit
+            </button>
+        </div>
+        <p class="text-gray-500 text-xs mt-2">Click Edit to change job title</p>
     </div>
 
-    <!-- MAIN CONTENT -->
-    <div class="main-content">
-        <div class="page-header">
-            <h1>📊 Skill Analysis Dashboard</h1>
-            <p style="color: #94a3b8;">Resume analysis complete</p>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div class="bg-[#1e293b] p-6 rounded-xl border border-gray-700">
+            <p class="text-gray-400 text-sm mb-2">Skills Detected</p>
+            <div class="text-5xl font-bold text-white">{{ skills_found|length }}</div>
         </div>
-
-        <!-- ATS SCORE -->
-        <div class="glass-card ats-score-box">
-            <h2 style="color: #00ff88; margin-bottom: 15px;">ATS Compatibility Score</h2>
-            <div class="ats-score">{{ ats_score }}%</div>
-            <p style="color: #94a3b8; margin-top: 10px;">
-                {% if ats_score >= 80 %}Excellent - Ready to apply!
-                {% elif ats_score >= 60 %}Good - Minor improvements needed
-                {% else %}Needs work - Add more keywords{% endif %}
-            </p>
+        <div class="bg-[#1e293b] p-6 rounded-xl border border-gray-700">
+            <p class="text-gray-400 text-sm mb-2">Best Match</p>
+            <div class="text-5xl font-bold text-green-400">{{ match_percent }}%</div>
         </div>
-
-        <!-- SKILLS FOUND -->
-        <div class="glass-card">
-            <h2 style="color: #00ff88; margin-bottom: 20px;">✅ Skills Detected ({{ skills_found|length }})</h2>
-            {% if skills_found %}
-                {% for skill in skills_found %}
-                    <span class="skill-badge">{{ skill }}</span>
-                {% endfor %}
-            {% else %}
-                <p style="color: #94a3b8;">No technical skills detected. Please upload a detailed resume.</p>
+        <div class="bg-[#1e293b] p-6 rounded-xl {% if ats_resume_score < 80 %}border-red-500{% else %}border-gray-700{% endif %}">
+            <p class="text-gray-400 text-sm mb-2">ATS Resume Score</p>
+            <div class="text-5xl font-bold {% if ats_resume_score < 80 %}text-red-400{% else %}text-[#22d3ee]{% endif %}">{{ ats_resume_score }}</div>
+            {% if ats_resume_score < 80 %}
+            <p class="text-red-400 text-xs mt-2">⚠️ Needs Improvement</p>
             {% endif %}
         </div>
+    </div>
 
-        <!-- CHARTS -->
-        {% if charts %}
-        <div class="glass-card">
-            <div id="gauge-chart"></div>
+    {% if show_resume_builder %}
+    <div class="bg-gradient-to-r from-red-500/20 to-orange-500/20 border-2 border-red-500 p-6 rounded-xl mb-6">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <h4 class="text-xl font-bold text-white mb-2">⚠️ Your ATS Score is Low ({{ ats_resume_score }}/100)</h4>
+                <p class="text-gray-300">Build an ATS-optimized resume matching {{ job_title }} to increase your chances!</p>
+            </div>
+            <a href="{{ url_for('resume_builder', mode='preview') }}" class="px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold rounded-xl hover:opacity-90 transition flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                Open Resume Builder
+            </a>
         </div>
-        {% endif %}
+    </div>
+    {% endif %}
 
-        <!-- JD MATCHING -->
-        {% if jd_comparison %}
-        <div class="glass-card">
-            <h2 style="color: #00ff88; margin-bottom: 20px;">🎯 Job Description Match</h2>
-            <div style="font-size: 3em; font-weight: 700; color: #00ff88; text-align: center; margin: 20px 0;">
-                {{ jd_comparison.match_percent }}%
-            </div>
-            <p style="text-align: center; color: #94a3b8;">Match with your applying job: {{ applying_job_title }}</p>
-            
-            <div style="margin-top: 25px;">
-                <strong style="color: #00ff88;">Matched Skills:</strong><br>
-                {% for skill in jd_comparison.matched_skills %}
-                    <span class="skill-badge">{{ skill }}</span>
-                {% endfor %}
-            </div>
-            
-            <div style="margin-top: 20px;">
-                <strong style="color: #ff8888;">Missing Skills:</strong><br>
-                {% for skill in jd_comparison.missing_skills %}
-                    <span style="background: rgba(255, 68, 68, 0.15); border: 1px solid #ff4444; color: #ff8888; padding: 8px 18px; border-radius: 20px; display: inline-block; margin: 5px; font-size: 14px;">{{ skill }}</span>
-                {% endfor %}
-            </div>
+    <div class="bg-[#1e293b] p-6 rounded-xl border border-gray-700 mb-6">
+        <h4 class="text-lg font-bold text-[#22d3ee] mb-4 flex items-center gap-2">
+            <span>🎯</span> Your Skills
+        </h4>
+        <div class="flex flex-wrap gap-2">
+            {% for skill in skills_found %}
+            <span class="px-4 py-2 bg-purple-500/20 border border-purple-500 text-purple-300 rounded-full text-sm font-semibold">{{ skill }}</span>
+            {% endfor %}
         </div>
-        {% endif %}
     </div>
 
     {% if charts %}
+    <div class="bg-[#1e293b] p-6 rounded-xl border border-gray-700 mb-6">
+        <h4 class="text-lg font-bold text-[#22d3ee] mb-4">📊 Top Match Score</h4>
+        <div id="gauge-chart"></div>
+    </div>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script>
-        const chartData = {{ charts.gauge | safe }};
-        Plotly.newPlot('gauge-chart', chartData.data, chartData.layout, {responsive: true, displayModeBar: false});
+        var graphs = {{ charts.gauge | safe }};
+        Plotly.newPlot('gauge-chart', graphs.data, graphs.layout, {responsive: true, displayModeBar: false});
     </script>
     {% endif %}
-</body>
-</html>
+
+    <div class="bg-[#1e293b] p-6 rounded-xl border border-gray-700 mb-6">
+        <div class="flex justify-between items-center mb-4">
+            <div>
+                <span class="text-2xl font-bold text-green-400">{{ match_percent }}%</span>
+                <span class="text-gray-400 ml-2">{{ matched_skills|length }}/{{ (matched_skills|length + missing_skills|length) }} matched</span>
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <p class="text-green-400 font-semibold mb-3 flex items-center gap-2">✅ Matched Skills:</p>
+            <div class="flex flex-wrap gap-2">
+                {% for skill in matched_skills %}
+                <span class="px-4 py-2 bg-green-500/20 border border-green-500 text-green-400 rounded-full text-sm font-semibold">{{ skill }}</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="mb-6">
+            <p class="text-red-400 font-semibold mb-3 flex items-center gap-2">⚠️ Skills to Learn - Click for Roadmap:</p>
+            <div class="flex flex-wrap gap-2">
+                {% for skill in missing_skills %}
+                <a href="{{ url_for('skill_roadmap', skill_name=skill) }}" class="px-4 py-2 bg-orange-500/20 border border-orange-500 text-orange-400 rounded-full text-sm font-semibold hover:bg-orange-500/40 transition">
+                    {{ skill }}
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if bonus_skills %}
+        <div>
+            <p class="text-blue-400 font-semibold mb-3 flex items-center gap-2">🎁 Bonus Skills:</p>
+            <div class="flex flex-wrap gap-2">
+                {% for skill in bonus_skills %}
+                <span class="px-4 py-2 bg-blue-500/20 border border-blue-500 text-blue-400 rounded-full text-sm font-semibold">{{ skill }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="bg-[#1e293b] p-6 rounded-xl border border-gray-700">
+        <h4 class="text-2xl font-bold text-[#22d3ee] mb-2 flex items-center gap-2">
+            <span>🎯</span> Job Matches
+        </h4>
+        <p class="text-gray-400 mb-4">Based on your skills, we found <span class="text-white font-bold">10 jobs</span> matching your profile</p>
+
+        {% if top_match_job %}
+        <div class="bg-[#0f172a] p-6 rounded-xl border border-gray-600 mb-4">
+            <p class="text-gray-400 text-sm mb-2">Top Match: <span class="text-white font-bold">{{ top_match_job.title }}</span></p>
+            <p class="text-green-400 font-bold text-lg">{{ top_match_job.match_score }}% Match • {{ top_match_job.salary }}</p>
+        </div>
+        {% endif %}
+
+        <a href="{{ url_for('job_matches') }}" class="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#22d3ee] to-[#3b82f6] text-black font-bold rounded-xl hover:opacity-90 transition">
+            📋 View All 10 Job Matches →
+        </a>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

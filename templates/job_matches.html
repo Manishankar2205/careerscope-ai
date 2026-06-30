@@ -1,559 +1,221 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CareerScope - Job Matches</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Poppins', sans-serif;
-            background: #0f172a;
-            color: white;
-            display: flex;
-            min-height: 100vh;
-        }
+{% extends "base.html" %}
+{% block title %}Job Matches{% endblock %}
+{% block content %}
+<style>
+.job-card {
+    background: #1e293b;
+    border: 2px solid #334155;
+    border-radius: 15px;
+    padding: 24px;
+    margin-bottom: 20px;
+    transition: 0.3s;
+}
+.job-card:hover {
+    border-color: #22d3ee;
+    transform: translateY(-4px);
+    box-shadow: 0 10px 30px rgba(34, 211, 238, 0.2);
+}
+.match-badge {
+    background: linear-gradient(135deg, #22d3ee, #3b82f6);
+    color: #0f172a;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.match-badge-low {
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    color: #0f172a;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 14px;
+}
+.skill-tag-matched {
+    background: #10b981;
+    border: 1px solid #059669;
+    color: #0f172a;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    display: inline-block;
+    margin: 4px;
+    font-weight: 600;
+}
+.skill-tag-missing {
+    background: #ef4444;
+    border: 1px solid #dc2626;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 12px;
+    font-size: 13px;
+    display: inline-block;
+    margin: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.2s;
+    text-decoration: none;
+}
+.skill-tag-missing:hover {
+    background: #dc2626;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+.apply-btn {
+    background: linear-gradient(135deg, #0a66c2, #004182);
+    color: white;
+    padding: 12px 32px;
+    border-radius: 10px;
+    font-weight: bold;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.3s;
+}
+.apply-btn:hover {
+    opacity: 0.9;
+    transform: scale(1.05);
+}
+.view-btn {
+    background: #334155;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: bold;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: 0.3s;
+}
+.view-btn:hover {
+    background: #475569;
+}
+</style>
 
-        /* SIDEBAR */
-    .sidebar {
-            width: 260px;
-            background: #1e293b;
-            padding: 25px 15px;
-            display: flex;
-            flex-direction: column;
-            position: fixed;
-            height: 100vh;
-            border-right: 1px solid #334155;
-        }
-    .logo {
-            font-size: 1.5em;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 40px;
-            padding: 0 10px;
-        }
-    .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 14px 15px;
-            margin: 4px 0;
-            border-radius: 10px;
-            color: #94a3b8;
-            text-decoration: none;
-            font-weight: 500;
-            transition: 0.2s;
-            cursor: pointer;
-            border: none;
-            background: transparent;
-            width: 100%;
-            text-align: left;
-            font-family: 'Poppins';
-            font-size: 15px;
-        }
-    .nav-item:hover {
-            background: #334155;
-            color: #00ff88;
-        }
-    .nav-item.active {
-            background: #334155;
-            color: #00ff88;
-            border-left: 3px solid #00ff88;
-        }
-    .nav-divider {
-            height: 1px;
-            background: #334155;
-            margin: 15px 0;
-        }
-
-        /* MAIN CONTENT */
-    .main-content {
-            margin-left: 260px;
-            flex: 1;
-            padding: 30px;
-            background: #0f172a;
-        }
-    .page-header h1 {
-            font-size: 2.2em;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 8px;
-        }
-    .page-header p {
-            color: #94a3b8;
-            margin-bottom: 25px;
-        }
-
-        /* STAT BOXES - FIXED CSS */
-    .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-    .stat-box {
-            background: #1e293b;
-            padding: 25px;
-            border-radius: 12px;
-            border: 1px solid #334155;
-        }
-    .stat-box.label {
-            color: #94a3b8;
-            font-size: 0.9em;
-            margin-bottom: 8px;
-        }
-    .stat-box.value {
-            font-size: 2.2em;
-            font-weight: 700;
-            color: #00ff88;
-        }
-
-        /* FILTER BAR */
-    .filter-bar {
-            background: #1e293b;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 25px;
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr 1fr auto;
-            gap: 15px;
-            align-items: end;
-            border: 1px solid #334155;
-        }
-    .filter-group label {
-            color: #00ff88;
-            font-size: 0.85em;
-            font-weight: 600;
-            display: block;
-            margin-bottom: 6px;
-        }
-    .filter-group input,.filter-group select {
-            width: 100%;
-            padding: 11px;
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 8px;
-            color: white;
-            font-family: 'Poppins';
-            outline: none;
-        }
-    .filter-group input:focus,.filter-group select:focus {
-            border-color: #00ff88;
-        }
-    .filter-btn {
-            padding: 11px 24px;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            color: #0f172a;
-            border: none;
-            border-radius: 8px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-    .filter-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,255,136,0.4);
-        }
-
-        /* JOB CARDS */
-    .job-card {
-            background: #1e293b;
-            border: 1px solid #334155;
-            border-radius: 15px;
-            padding: 25px;
-            margin: 15px 0;
-            transition: all 0.3s;
-        }
-    .job-card:hover {
-            border-color: #00ff88;
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0, 255, 136, 0.15);
-        }
-    .job-card.saved {
-            border-color: #ffaa00;
-            background: #2d2a1f;
-        }
-    .job-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin-bottom: 18px;
-            gap: 20px;
-        }
-    .job-title {
-            font-size: 1.4em;
-            font-weight: 700;
-            color: #00ff88;
-            margin-bottom: 5px;
-        }
-    .job-category {
-            color: #94a3b8;
-            font-size: 0.9em;
-        }
-    .match-score-section {
-            text-align: right;
-            min-width: 120px;
-        }
-    .match-score {
-            font-size: 2.5em;
-            font-weight: 700;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            display: block;
-        }
-    .job-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-            justify-content: flex-end;
-        }
-    .icon-btn {
-            background: #0f172a;
-            border: 1px solid #334155;
-            border-radius: 8px;
-            padding: 8px 12px;
-            cursor: pointer;
-            transition: 0.2s;
-            font-size: 1.1em;
-        }
-    .icon-btn:hover {
-            background: #334155;
-            border-color: #00ff88;
-        }
-    .icon-btn.active {
-            background: #3d3520;
-            border-color: #ffaa00;
-        }
-    .job-details {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-top: 20px;
-            padding: 20px;
-            background: #0f172a;
-            border-radius: 12px;
-            border: 1px solid #334155;
-        }
-    .detail-item { text-align: center; }
-    .detail-label { color: #94a3b8; font-size: 0.85em; margin-bottom: 6px; }
-    .detail-value { font-size: 1.2em; font-weight: 600; }
-    .risk-low { color: #00ff88; }
-    .risk-med { color: #ffc107; }
-    .risk-high { color: #ff4444; }
-    .missing-skills {
-            margin-top: 18px;
-            padding: 20px;
-            background: #0f172a;
-            border-radius: 12px;
-            border: 1px solid #334155;
-        }
-    .missing-badge {
-            background: rgba(255, 68, 68, 0.15);
-            border: 1px solid #ff4444;
-            color: #ff8888;
-            padding: 6px 14px;
-            border-radius: 20px;
-            display: inline-block;
-            margin: 5px;
-            font-size: 13px;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-    .missing-badge:hover {
-            background: rgba(255, 68, 68, 0.25);
-        }
-    .apply-btn {
-            display: inline-block;
-            padding: 12px 28px;
-            background: linear-gradient(90deg, #00ff88, #00aaff);
-            color: #0f172a;
-            border-radius: 10px;
-            text-decoration: none;
-            font-weight: 700;
-            font-size: 15px;
-            transition: all 0.3s;
-            margin: 5px;
-        }
-    .apply-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(0,255,136,0.4);
-        }
-    .learn-btn {
-            display: inline-block;
-            padding: 10px 22px;
-            background: rgba(255,170,0,0.15);
-            color: #ffaa00;
-            border: 1px solid #ffaa00;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            font-size: 14px;
-            margin: 5px;
-            transition: 0.2s;
-        }
-    .learn-btn:hover {
-            background: rgba(255,170,0,0.25);
-        }
-    .compare-bar {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1e293b;
-            padding: 18px 35px;
-            border-radius: 15px;
-            border: 2px solid #00ff88;
-            display: none;
-            z-index: 1000;
-            box-shadow: 0 10px 40px rgba(0,255,136,0.3);
-        }
-    .compare-bar.show { display: block; }
-
-        @media (max-width: 1024px) {
-        .sidebar { width: 80px; }
-        .sidebar.logo,.sidebar.nav-item span { display: none; }
-        .main-content { margin-left: 80px; }
-        .stats-grid { grid-template-columns: 1fr 1fr; }
-        .filter-bar { grid-template-columns: 1fr; }
-        .job-details { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-    <!-- SIDEBAR - FIXED LINKS WITH data=encoded_data -->
-    <div class="sidebar">
-        <div class="logo">CareerScope</div>
-
-        <a href="{{ url_for('job_matches', data=encoded_data) }}" class="nav-item active">
-            📊 <span>Job Matches</span>
-        </a>
-        <a href="{{ url_for('export_pdf', data=encoded_data) }}" target="_blank" class="nav-item">
-            📄 <span>Export PDF</span>
-        </a>
-        <button onclick="showEmailAlert()" class="nav-item">
-            📧 <span>Email Alerts</span>
-        </button>
-        {% if results %}
-        <a href="{{ url_for('salary_trend', job_title=results[0].title, salary=results[0].salary, data=encoded_data) }}" class="nav-item">
-            📈 <span>Salary Trend</span>
-        </a>
-        {% endif %}
-
-        <div class="nav-divider"></div>
-
-        <a href="{{ url_for('skill_analysis', data=encoded_data) }}" class="nav-item">
-            ← <span>Back to Analysis</span>
-        </a>
-        <a href="{{ url_for('logout') }}" class="nav-item">
-            🚪 <span>Logout</span>
-        </a>
+<div class="mb-6 flex justify-between items-center flex-wrap gap-4">
+    <div>
+        <h2 class="text-4xl font-bold text-white mb-2 flex items-center gap-3">
+            <span>💼</span> Job Matches
+        </h2>
+        <p class="text-gray-400 text-lg">Top jobs matching your resume - Apply directly on LinkedIn</p>
     </div>
+    <a href="{{ url_for('dashboard') }}" class="px-6 py-3 bg-gray-700 text-white rounded-xl hover:bg-gray-600 font-semibold">← Dashboard</a>
+</div>
 
-    <!-- MAIN CONTENT -->
-    <div class="main-content">
-        <div class="page-header">
-            <h1>🎯 Top {{ results|length }} Job Matches</h1>
-            <p>For: <span style="color: #00ff88; font-weight: 600;">{{ applying_job_title }}</span></p>
-        </div>
+{% if not has_analysis %}
+<div class="mb-6 bg-yellow-900/30 border border-yellow-600 p-4 rounded-xl flex items-start gap-3">
+    <span class="text-2xl">⚠️</span>
+    <div>
+        <p class="text-yellow-400 font-semibold mb-1">For Better Matches</p>
+        <p class="text-yellow-300 text-sm">Analyze your resume first to get personalized job recommendations based on your skills. 
+        <a href="{{ url_for('skill_analysis') }}" class="underline font-bold">Go to Skill Analysis →</a>
+        </p>
+    </div>
+</div>
+{% endif %}
 
-        <!-- STATS - FIXED CLASS NAMES -->
-        <div class="stats-grid">
-            <div class="stat-box">
-                <div class="label">Total Jobs</div>
-                <div class="value">{{ stats.total }}</div>
+<div class="mb-6 bg-gradient-to-r from-[#1e293b] to-[#334155] p-6 rounded-xl border border-[#22d3ee]/30">
+    <h3 class="text-xl font-bold text-[#22d3ee] mb-2">🎯 Searching for: {{ target_job }}</h3>
+    <p class="text-gray-400">Found {{ jobs|length }} LinkedIn jobs. Click Apply to view real-time openings with filters applied.</p>
+</div>
+
+{% if jobs %}
+<div class="grid grid-cols-1 gap-6">
+    {% for job in jobs[:20] %}
+    <div class="job-card">
+        <div class="flex justify-between items-start mb-4 flex-wrap gap-4">
+            <div class="flex-1">
+                <h3 class="text-2xl font-bold text-white mb-2">{{ job.title }}</h3>
+                <p class="text-[#22d3ee] font-semibold mb-1">{{ job.company }}</p>
+                <div class="flex flex-wrap gap-4 text-gray-400 text-sm mt-2">
+                    <span>📍 {{ job.location }}</span>
+                    <span>💰 {{ job.salary }}</span>
+                    <span>⏰ {{ job.posted }}</span>
+                </div>
             </div>
-            <div class="stat-box">
-                <div class="label">Avg Match</div>
-                <div class="value">{{ stats.avg_match }}%</div>
-            </div>
-            <div class="stat-box">
-                <div class="label">Avg Salary</div>
-                <div class="value">₹{{ stats.avg_salary }}</div>
-            </div>
-            <div class="stat-box">
-                <div class="label">80%+ Matches</div>
-                <div class="value">{{ stats.high_match }}</div>
+            <div class="{% if job.match_score >= 70 %}match-badge{% else %}match-badge-low{% endif %}">
+                {{ job.match_score }}% Match
             </div>
         </div>
 
-        <!-- FILTERS -->
-        <form method="get" class="filter-bar">
-            <input type="hidden" name="data" value="{{ encoded_data }}">
-            <div class="filter-group">
-                <label>🔍 Search Job Title</label>
-                <input type="text" name="search" value="{{ filters.search }}" placeholder="e.g. Python Developer">
-            </div>
-            <div class="filter-group">
-                <label>📊 Min Match %</label>
-                <input type="number" name="min_match" value="{{ filters.min_match }}" min="0" max="100">
-            </div>
-            <div class="filter-group">
-                <label>💰 Min Salary LPA</label>
-                <input type="number" name="min_salary" value="{{ filters.min_salary }}" min="0" step="0.5">
-            </div>
-            <div class="filter-group">
-                <label>⚠️ Max Risk %</label>
-                <input type="number" name="max_risk" value="{{ filters.max_risk }}" min="0" max="100">
-            </div>
-            <div class="filter-group">
-                <label>📈 Sort By</label>
-                <select name="sort">
-                    <option value="match" {% if filters.sort == 'match' %}selected{% endif %}>Match %</option>
-                    <option value="salary" {% if filters.sort == 'salary' %}selected{% endif %}>Salary</option>
-                    <option value="risk" {% if filters.sort == 'risk' %}selected{% endif %}>Risk (Low)</option>
-                </select>
-            </div>
-            <button type="submit" class="filter-btn">Apply</button>
-        </form>
+        <p class="text-gray-300 mb-4">{{ job.description }}</p>
 
-        <!-- JOB CARDS -->
-        {% if results %}
-            {% for job in results %}
-            <div class="job-card" id="job-{{ job.id }}">
-                <div class="job-header">
-                    <div class="job-title-section">
-                        <div class="job-title">{{ loop.index }}. {{ job.title }}</div>
-                        <div class="job-category">{{ job.category }}</div>
-                    </div>
-                    <div class="match-score-section">
-                        <span class="match-score">{{ job.match }}%</span>
-                        <div class="job-actions">
-                            <button class="icon-btn" onclick="toggleSave({{ job.id }})" id="save-{{ job.id }}" title="Save Job">💾</button>
-                            <button class="icon-btn" onclick="addToCompare({{ job.id }}, '{{ job.title }}')" title="Compare">⚖️</button>
-                        </div>
-                    </div>
-                </div>
-                <div class="job-details">
-                    <div class="detail-item">
-                        <div class="detail-label">💰 Salary</div>
-                        <div class="detail-value">₹{{ job.salary }} LPA</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">⚠️ Automation Risk</div>
-                        <div class="detail-value {% if job.risk < 30 %}risk-low{% elif job.risk < 60 %}risk-med{% else %}risk-high{% endif %}">
-                            {{ job.risk }}%
-                        </div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">📊 Match Level</div>
-                        <div class="detail-value">
-                            {% if job.match >= 80 %}🔥 Excellent
-                            {% elif job.match >= 60 %}⭐ Good
-                            {% else %}💡 Average{% endif %}
-                        </div>
-                    </div>
-                {% if job.missing %}
-                <div class="missing-skills">
-                    <strong style="color: #ff8888;">⚠️ Missing Skills:</strong><br>
-                    {% for skill in job.missing %}
-                        <span class="missing-badge" onclick="window.open('https://www.youtube.com/results?search_query=learn+{{ skill | urlencode }}', '_blank')">
-                            {{ skill }} 📚
-                        </span>
-                    {% endfor %}
-                </div>
-                {% endif %}
-                <div style="margin-top: 20px; text-align: center;">
-                    <a href="{{ job.apply_url }}" target="_blank" class="apply-btn">
-                        {% if job.company_name %}🚀 Apply at {{ job.company_name }}{% else %}🚀 Apply on LinkedIn{% endif %}
-                    </a>
-                    <a href="{{ url_for('interview_prep', job_title=job.title, data=encoded_data) }}" class="learn-btn">💼 Interview Prep</a>
-                </div>
+        <div class="mb-4">
+            <p class="text-gray-400 text-sm mb-2 font-semibold">✅ Skills You Have:</p>
+            <div>
+                {% for skill in job.skills_required %}
+                <span class="skill-tag-matched">{{ skill }}</span>
+                {% endfor %}
             </div>
-            {% endfor %}
-        {% else %}
-            <div style="text-align: center; padding: 60px; color: #94a3b8;">
-                <h3>No jobs match your filters 😢</h3>
-                <p>Try reducing Match % or Salary filters</p>
+        </div>
+
+        {% if job.missing_skills %}
+        <div class="mb-5">
+            <p class="text-gray-400 text-sm mb-2 font-semibold">❌ Missing Skills - Click to Learn Roadmap:</p>
+            <div>
+                {% for skill in job.missing_skills %}
+                <a href="{{ url_for('skill_roadmap', skill_name=skill) }}" class="skill-tag-missing">
+                    {{ skill }} <i class="fas fa-arrow-right text-xs"></i>
+                </a>
+                {% endfor %}
             </div>
+        </div>
         {% endif %}
+
+        <div class="flex gap-3 flex-wrap">
+            <a href="{{ job.linkedin_url }}" target="_blank" class="apply-btn">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                </svg>
+                Apply on LinkedIn
+            </a>
+            <a href="{{ job.linkedin_url }}" target="_blank" class="view-btn">
+                🔍 View All Openings
+            </a>
+        </div>
     </div>
+    {% endfor %}
+</div>
 
-    <!-- COMPARE BAR -->
-    <div class="compare-bar" id="compareBar">
-        <span id="compareCount">0 jobs selected</span>
-        <button onclick="goToCompare()" class="apply-btn" style="margin-left: 15px; padding: 8px 20px;">Compare Now →</button>
-        <button onclick="clearCompare()" style="margin-left: 10px; background: rgba(255,68,68,0.2); border: 1px solid #ff4444; color: #ff8888; padding: 8px 15px; border-radius: 8px; cursor: pointer;">Clear</button>
-    </div>
+<!-- SINGLE BOX - NO NESTING -->
+<div class="bg-[#1e293b] p-6 rounded-xl border border-[#334155] mt-8">
+    <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2">
+        <i class="fas fa-lightbulb text-yellow-400"></i> Pro Tips for LinkedIn
+    </h3>
+    <ul class="space-y-3 text-gray-300">
+        <li class="flex items-start gap-3">
+            <span class="text-green-400 text-lg">✓</span>
+            <span><span class="text-green-400 font-semibold">Green skills</span> = You already have these. Apply confidently!</span>
+        </li>
+        <li class="flex items-start gap-3">
+            <span class="text-red-400 text-lg">✗</span>
+            <span><span class="text-red-400 font-semibold">Red skills</span> = Click them to see learning roadmap & start preparing</span>
+        </li>
+        <li class="flex items-start gap-3">
+            <span class="text-cyan-400 text-lg">🔍</span>
+            <span><span class="text-cyan-400 font-semibold">Use filters on LinkedIn:</span> Experience Level, Date Posted, Job Type</span>
+        </li>
+        <li class="flex items-start gap-3">
+            <span class="text-yellow-400 text-lg">📊</span>
+            <span><span class="text-yellow-400 font-semibold">Match score below 60%?</span> Learn the red skills to boost your chances</span>
+        </li>
+        <li class="flex items-start gap-3">
+            <span class="text-blue-400 text-lg">⚡</span>
+            <span><span class="text-blue-400 font-semibold">Turn on "Easy Apply"</span> filter for 1-click applications</span>
+        </li>
+    </ul>
+</div>
 
-    <script>
-        let savedJobs = JSON.parse(localStorage.getItem('savedJobs') || '[]');
-        let compareJobs = [];
-
-        window.onload = function() {
-            savedJobs.forEach(id => {
-                const btn = document.getElementById('save-' + id);
-                const card = document.getElementById('job-' + id);
-                if (btn) btn.classList.add('active');
-                if (card) card.classList.add('saved');
-            });
-        };
-
-        function toggleSave(jobId) {
-            const btn = document.getElementById('save-' + jobId);
-            const card = document.getElementById('job-' + jobId);
-            const index = savedJobs.indexOf(jobId);
-            if (index > -1) {
-                savedJobs.splice(index, 1);
-                btn.classList.remove('active');
-                card.classList.remove('saved');
-            } else {
-                savedJobs.push(jobId);
-                btn.classList.add('active');
-                card.classList.add('saved');
-            }
-            localStorage.setItem('savedJobs', JSON.stringify(savedJobs));
-        }
-
-        function addToCompare(jobId, jobTitle) {
-            if (compareJobs.length >= 2) {
-                alert('You can compare max 2 jobs. Clear selection first.');
-                return;
-            }
-            if (compareJobs.find(j => j.id === jobId)) return;
-            compareJobs.push({id: jobId, title: jobTitle});
-            updateCompareBar();
-        }
-
-        function updateCompareBar() {
-            const bar = document.getElementById('compareBar');
-            const count = document.getElementById('compareCount');
-            count.textContent = compareJobs.length + ' job' + (compareJobs.length!== 1? 's' : '') + ' selected';
-            bar.classList.toggle('show', compareJobs.length > 0);
-        }
-
-        function goToCompare() {
-            if (compareJobs.length < 2) {
-                alert('Select 2 jobs to compare');
-                return;
-            }
-            const ids = compareJobs.map(j => 'job_id=' + j.id).join('&');
-            window.location.href = '/compare?data={{ encoded_data }}&' + ids;
-        }
-
-        function clearCompare() {
-            compareJobs = [];
-            updateCompareBar();
-        }
-
-        function showEmailAlert() {
-            const email = prompt('Enter your email for job alerts:');
-            if (email) {
-                fetch('/email-alerts?data={{ encoded_data }}', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: 'email=' + encodeURIComponent(email) + '&min_match=70'
-                })
-         .then(r => r.json())
-         .then(data => alert(data.message))
-         .catch(e => alert('Error: ' + e));
-            }
-        }
-    </script>
-</body>
-</html>
+{% else %}
+<div class="text-center py-16 bg-[#1e293b] rounded-xl border border-[#334155]">
+    <div class="text-6xl mb-4">🔍</div>
+    <h3 class="text-2xl font-bold text-white mb-2">No Jobs Found</h3>
+    <p class="text-gray-400 mb-6">Please analyze your resume first to get job recommendations.</p>
+    <a href="{{ url_for('skill_analysis') }}" class="inline-block px-8 py-3 bg-[#22d3ee] text-black rounded-xl font-bold hover:bg-[#0ea5e9]">
+        Go to Skill Analysis
+    </a>
+</div>
+{% endif %}
+{% endblock %}
