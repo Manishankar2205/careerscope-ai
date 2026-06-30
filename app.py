@@ -22,7 +22,6 @@ import base64
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
-# NO SESSION CONFIG - Vadde vaddu
 app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
 bcrypt = Bcrypt(app)
@@ -285,7 +284,6 @@ def compare_with_jd(resume_skills, jd_skills):
     return {"match_percent": match_percent, "matched_skills": matched, "missing_skills": missing[:6],
         "extra_skills": extra[:4], "total_jd_skills": len(jd_set), "total_matched": len(matched)}
 
-# ENCODE/DECODE FOR URL - SESSION BADULU IDI VAADU
 def encode_data(data):
     json_str = json.dumps(data)
     return base64.urlsafe_b64encode(json_str.encode()).decode()
@@ -385,9 +383,8 @@ def index():
                 jd_job_title = extract_job_title_from_jd(jd_text_manual)
             jd_comparison = compare_with_jd(skills, jd_skills)
 
-            # RENDER FIX: Session vaddu, URL lo encode chesi pampistam
             data_to_pass = {
-                'skills': skills[:5], # Max 5 skills
+                'skills': skills[:5],
                 'it': 1 if it_only else 0,
                 'jd_match': jd_comparison['match_percent'] if jd_comparison else 0,
                 'jd_matched': jd_comparison['matched_skills'][:3] if jd_comparison else [],
@@ -423,7 +420,6 @@ def skill_analysis():
 
     results, charts = get_top_matches(skills_list, it_checked)
 
-    # Recreate jd_comparison
     jd_comparison = None
     if data.get('jd_match', 0) > 0:
         jd_comparison = {
@@ -443,15 +439,20 @@ def skill_analysis():
                          jd_comparison=jd_comparison,
                          applying_job_title=data.get('title', 'Software Engineer'),
                          title_source='job_description' if data.get('jd_match', 0) > 0 else 'resume_match',
-                         ats_score=data.get('ats', 0))
+                         ats_score=data.get('ats', 0),
+                         encoded_data=encoded_data) # FIX: Pass to template
 
 @app.route('/job-matches')
 @login_required
 def job_matches():
     encoded_data = request.args.get('data')
-    if not encoded_data: return redirect(url_for('index'))
+    if not encoded_data:
+        flash('No data found. Please upload resume again.', 'error')
+        return redirect(url_for('index'))
     data = decode_data(encoded_data)
-    if not data: return redirect(url_for('index'))
+    if not data:
+        flash('Invalid data. Please upload resume again.', 'error')
+        return redirect(url_for('index'))
 
     skills_list = data.get('skills', [])
     it_checked = data.get('it', 0) == 1
@@ -482,7 +483,8 @@ def job_matches():
                          applying_job_title=data.get('title', 'Software Engineer'),
                          filters={'min_match': float(min_match), 'min_salary': float(min_salary),
                                   'max_risk': int(max_risk), 'sort': str(sort_by),
-                                  'search': str(search), 'location': str(location)})
+                                  'search': str(search), 'location': str(location)},
+                         encoded_data=encoded_data) # FIX: Pass to template
 
 @app.route('/saved-jobs')
 @login_required
@@ -504,7 +506,7 @@ def saved_jobs():
             'match': float(job.get('match', 0)), 'apply_url': str(job.get('apply_url', '#')),
             'company_name': job.get('company_name'), 'missing': job.get('missing', [])
         })
-    return render_template('saved_jobs.html', jobs=safe_results)
+    return render_template('saved_jobs.html', jobs=safe_results, encoded_data=encoded_data) # FIX
 
 @app.route('/compare')
 @login_required
@@ -519,31 +521,34 @@ def compare():
     it_checked = data.get('it', 0) == 1
     results, _ = get_top_matches(skills_list, it_checked)
     compare_jobs = [j for j in results if j.get('id') in job_ids][:2]
-    return render_template('compare.html', jobs=compare_jobs)
+    return render_template('compare.html', jobs=compare_jobs, encoded_data=encoded_data) # FIX
 
 @app.route('/interview-prep/<job_title>')
 @login_required
 def interview_prep(job_title):
+    encoded_data = request.args.get('data') # FIX: Add this
     company = get_company_name(job_title)
     company_key = company.lower() if company else 'default'
     questions = INTERVIEW_QUESTIONS.get(company_key, INTERVIEW_QUESTIONS['default'])
-    return render_template('interview_prep.html', job_title=job_title, company=company or 'General', questions=questions)
+    return render_template('interview_prep.html', job_title=job_title, company=company or 'General', questions=questions, encoded_data=encoded_data) # FIX
 
 @app.route('/salary-trend/<job_title>/<float:salary>')
 @login_required
 def salary_trend(job_title, salary):
+    encoded_data = request.args.get('data') # FIX: Add this
     chart_json = create_salary_trend_chart(job_title, salary)
-    return render_template('salary_trend.html', job_title=job_title, current_salary=salary, chart_json=chart_json)
+    return render_template('salary_trend.html', job_title=job_title, current_salary=salary, chart_json=chart_json, encoded_data=encoded_data) # FIX
 
 @app.route('/email-alerts', methods=['GET', 'POST'])
 @login_required
 def email_alerts():
+    encoded_data = request.args.get('data') # FIX
     if request.method == 'POST':
         email = request.form.get('email')
         min_match = request.form.get('min_match', 70)
         return jsonify({'success': True, 'message': f'Alerts enabled for {email}'})
     alerts = {'enabled': False}
-    return render_template('email_alerts.html', alerts=alerts)
+    return render_template('email_alerts.html', alerts=alerts, encoded_data=encoded_data) # FIX
 
 @app.route('/export-pdf')
 @login_required
