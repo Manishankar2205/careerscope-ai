@@ -111,12 +111,12 @@
 <body>
     <div class="sidebar">
         <div class="logo">CareerScope</div>
-        <a href="{{ url_for('skill_analysis') }}" class="nav-item">📊 <span>Skill Analysis</span></a>
-        <a href="{{ url_for('job_matches') }}" class="nav-item">💼 <span>Job Matches</span></a>
-        <a href="{{ url_for('saved_jobs') }}" class="nav-item active">💾 <span>Saved Jobs</span></a>
-        <a href="{{ url_for('export_pdf') }}" target="_blank" class="nav-item">📄 <span>Export PDF</span></a>
+        <a href="{{ url_for('skill_analysis', data=encoded_data) }}" class="nav-item">📊 <span>Skill Analysis</span></a>
+        <a href="{{ url_for('job_matches', data=encoded_data) }}" class="nav-item">💼 <span>Job Matches</span></a>
+        <a href="{{ url_for('saved_jobs', data=encoded_data) }}" class="nav-item active">💾 <span>Saved Jobs</span></a>
+        <a href="{{ url_for('export_pdf', data=encoded_data) }}" target="_blank" class="nav-item">📄 <span>Export PDF</span></a>
         <div class="nav-divider"></div>
-        <a href="{{ url_for('job_matches') }}" class="nav-item">← <span>Back to Jobs</span></a>
+        <a href="{{ url_for('job_matches', data=encoded_data) }}" class="nav-item">← <span>Back to Jobs</span></a>
         <a href="{{ url_for('logout') }}" class="nav-item">🚪 <span>Logout</span></a>
     </div>
 
@@ -133,6 +133,7 @@
         const allJobs = {{ jobs | tojson }};
         const savedJobIds = JSON.parse(localStorage.getItem('savedJobs') || '[]');
         const container = document.getElementById('savedJobsContainer');
+        const encodedData = "{{ encoded_data }}";
 
         function renderSavedJobs() {
             if (savedJobIds.length === 0) {
@@ -140,7 +141,7 @@
                     <div class="empty-state">
                         <h3>No saved jobs yet 📌</h3>
                         <p>Go to Job Matches and click 💾 Save to bookmark jobs</p>
-                        <a href="{{ url_for('job_matches') }}" style="display: inline-block; margin-top: 20px; padding: 12px 30px; background: linear-gradient(90deg, #00ff88, #00aaff); color: #0f172a; border-radius: 10px; text-decoration: none; font-weight: 700;">Browse Jobs</a>
+                        <a href="{{ url_for('job_matches', data=encoded_data) }}" style="display: inline-block; margin-top: 20px; padding: 12px 30px; background: linear-gradient(90deg, #00ff88, #00aaff); color: #0f172a; border-radius: 10px; text-decoration: none; font-weight: 700;">Browse Jobs</a>
                     </div>
                 `;
                 return;
@@ -153,7 +154,7 @@
                     <div class="empty-state">
                         <h3>No saved jobs found</h3>
                         <p>Your saved jobs may have been updated</p>
-                        <a href="{{ url_for('job_matches') }}" style="display: inline-block; margin-top: 20px; padding: 12px 30px; background: linear-gradient(90deg, #00ff88, #00aaff); color: #0f172a; border-radius: 10px; text-decoration: none; font-weight: 700;">Browse Jobs</a>
+                        <a href="{{ url_for('job_matches', data=encoded_data) }}" style="display: inline-block; margin-top: 20px; padding: 12px 30px; background: linear-gradient(90deg, #00ff88, #00aaff); color: #0f172a; border-radius: 10px; text-decoration: none; font-weight: 700;">Browse Jobs</a>
                     </div>
                 `;
                 return;
@@ -193,6 +194,7 @@
                         <a href="${job.apply_url}" target="_blank" class="apply-btn">🚀 Apply Now</a>
                         <button onclick="removeSavedJob(${job.id})" class="remove-btn">🗑️ Remove</button>
                     </div>
+                </div>
                 `;
             });
             container.innerHTML = html;
